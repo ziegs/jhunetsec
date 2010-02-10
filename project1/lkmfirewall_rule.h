@@ -11,6 +11,7 @@
 #include <linux/list.h>
 struct firewall_rule {
 	struct list_head list;
+	enum { ALLOW,BLOCK} allow_or_block;
 	enum { IN,OUT} in_or_out;
 	/** what protocal the rule is for */
 	enum{
