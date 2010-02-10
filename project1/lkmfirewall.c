@@ -19,6 +19,7 @@
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
+#include "lkmfirewall_rule.h"
 
 #define DRV_DESCRIPTION "A Simple Firewall Module"
 #define DRV_NAME "lkmfirewall"
