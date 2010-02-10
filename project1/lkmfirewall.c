@@ -95,10 +95,10 @@ int filter_init(void) {
 
 void filter_exit(void) {
 	printk(KERN_INFO "Exiting firewall...\n");
-	nf_unregister_hook(&hook_options);
+	nf_unregister_hook(&hook_opts);
 	remove_proc_entry("statistics", firewall_proc);
 	remove_proc_entry("rules", firewall_proc);
-	remove_proc_entry(firewall_proc, init_net.proc_net);
+	remove_proc_entry(DRV_NAME, init_net.proc_net);
 	firewall_proc = NULL;
 }
 module_init(filter_init)
