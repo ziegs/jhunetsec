@@ -13,6 +13,9 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/proc_fs.h>
+#include <linux/ip.h>
+#include <linux/tcp.h>
+#include <linux/icmp.h>
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
@@ -28,7 +31,8 @@ MODULE_AUTHOR(DRV_AUTHOR);
 MODULE_VERSION(DRV_VERSION);
 
 static struct proc_dir_entry *firewall_proc;
-static struct nf_hook_ops hook_opts;
+static struct nf_hook_ops in_hook_opts;
+static struct nf_hook_ops out_hook_opts;
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
@@ -45,25 +49,35 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	return len;
 }
 
-int process_packet(unsigned int hooknum, struct sk_buff *skb,
+unsigned int process_packet_in(unsigned int hooknum, struct sk_buff *skb,
 		const struct net_device *in, const struct net_device *out,
 		int(*okfun)(struct sk_buff *)) {
-	printk(KERN_INFO "Got one!");
+	return NF_DROP;
+}
+
+unsigned int process_packet_out(unsigned int hooknum, struct sk_buff *skb,
+		const struct net_device *in, const struct net_device *out,
+		int(*okfun)(struct sk_buff *)) {
 	return NF_DROP;
 }
 
 int filter_init(void) {
-	printk(KERN_INFO "Matt and Ian's Firewall Fun Time\n");
-
-	hook_opts.hook = process_packet;
-	hook_opts.hooknum = NF_INET_PRE_ROUTING;
-	hook_opts.pf = PF_INET;
-	hook_opts.priority = NF_IP_PRI_FIRST;
-
-	nf_register_hook(&hook_opts);
-
 	struct proc_dir_entry *stats_proc;
 	struct proc_dir_entry *rules_proc;
+
+	printk(KERN_INFO "Matt and Ian's Firewall Fun Time\n");
+
+	in_hook_opts.hook = process_packet_in;
+	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
+	in_hook_opts.pf = PF_INET;
+	in_hook_opts.priority = NF_IP_PRI_FIRST;
+	out_hook_opts.hook = process_packet_out;
+	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
+	out_hook_opts.pf = PF_INET;
+	out_hook_opts.priority = NF_IP_PRI_FIRST;
+
+	nf_register_hook(&in_hook_opts);
+	nf_register_hook(&out_hook_opts);
 
 	firewall_proc = proc_mkdir(DRV_NAME, init_net.proc_net);
 	if (!firewall_proc) {
@@ -95,13 +109,12 @@ int filter_init(void) {
 
 void filter_exit(void) {
 	printk(KERN_INFO "Exiting firewall...\n");
-	nf_unregister_hook(&hook_opts);
+	nf_unregister_hook(&in_hook_opts);
+	nf_unregister_hook(&out_hook_opts);
 	remove_proc_entry("statistics", firewall_proc);
 	remove_proc_entry("rules", firewall_proc);
 	remove_proc_entry(DRV_NAME, init_net.proc_net);
 	firewall_proc = NULL;
 }
-module_init(filter_init)
-;
-module_exit(filter_exit)
-;
+module_init(filter_init);
+module_exit(filter_exit);
