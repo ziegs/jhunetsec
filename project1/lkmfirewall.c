@@ -34,6 +34,14 @@ MODULE_VERSION(DRV_VERSION);
 static struct proc_dir_entry *firewall_proc;
 static struct nf_hook_ops in_hook_opts;
 static struct nf_hook_ops out_hook_opts;
+/*The list of firewall rules
+ *FIXME this should be static if nothing else touches it in another file
+ *FIXME presumably the proc stuff will be somewhere else and will
+ *FIXME want to touch this
+ *
+ *
+ *FIXME should be one list of in and one list for out */
+struct firewall_rule rule_list;
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
@@ -68,17 +76,7 @@ int filter_init(void) {
 
 	printk(KERN_INFO "Matt and Ian's Firewall Fun Time\n");
 
-	in_hook_opts.hook = process_packet_in;
-	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
-	in_hook_opts.pf = PF_INET;
-	in_hook_opts.priority = NF_IP_PRI_FIRST;
-	out_hook_opts.hook = process_packet_out;
-	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
-	out_hook_opts.pf = PF_INET;
-	out_hook_opts.priority = NF_IP_PRI_FIRST;
-
-	nf_register_hook(&in_hook_opts);
-	nf_register_hook(&out_hook_opts);
+	init_hooks();
 
 	firewall_proc = proc_mkdir(DRV_NAME, init_net.proc_net);
 	if (!firewall_proc) {
@@ -116,6 +114,21 @@ void filter_exit(void) {
 	remove_proc_entry("rules", firewall_proc);
 	remove_proc_entry(DRV_NAME, init_net.proc_net);
 	firewall_proc = NULL;
+}
+
+void init_hooks(void){
+	in_hook_opts.hook = process_packet_in;
+	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
+	in_hook_opts.pf = PF_INET;
+	in_hook_opts.priority = NF_IP_PRI_FIRST;
+
+	out_hook_opts.hook = process_packet_out;
+	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
+	out_hook_opts.pf = PF_INET;
+	out_hook_opts.priority = NF_IP_PRI_FIRST;
+
+	nf_register_hook(&in_hook_opts);
+	nf_register_hook(&out_hook_opts);
 }
 module_init(filter_init);
 module_exit(filter_exit);

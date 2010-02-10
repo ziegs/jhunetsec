@@ -21,7 +21,6 @@ struct firewall_rule {
 	enum { IN,OUT} in_or_out;
 	/* What protocol the rule is for*/
 	enum{
-
 		TCP,
 		UDP,
 		ICMP,
