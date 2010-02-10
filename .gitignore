@@ -9,3 +9,6 @@
 *.cmd
 .tmp_versions/
 *.swp
+project1/.metadata/
+.metadata/.plugins/
+*.swo
