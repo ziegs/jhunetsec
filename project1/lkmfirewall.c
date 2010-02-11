@@ -20,12 +20,11 @@
 
 #include "lkmfirewall.h"
 #include "lkmfirewall_rule.h"
-
+#include <linux/vmalloc.h>
 #define DRV_DESCRIPTION "A Simple Firewall Module"
 #define DRV_NAME "lkmfirewall"
 #define DRV_VERSION "0.1"
 #define DRV_AUTHOR "Matthew Ziegelbaum and Ian Miers"
-
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION(DRV_DESCRIPTION);
 MODULE_AUTHOR(DRV_AUTHOR);
@@ -77,7 +76,22 @@ int filter_init(void) {
 	printk(KERN_INFO "Matt and Ian's Firewall Fun Time\n");
 
 	init_hooks();
+	/*
+	 *List init */
+	INIT_LIST_HEAD(&(rule_list.list));
+	struct firewall_rule rule1;
+	struct firewall_rule rule2;
+	struct firewall_rule *tmp;
+	struct list_head *pos;
+	rule1.src_port=1;
+	rule2.src_port=2;
+	list_add_tail(&(rule1.list),&(rule_list.list));
+	list_add_tail(&(rule2.list),&(rule_list.list));
 
+	list_for_each(pos,&(rule_list.list)){
+		tmp=list_entry(pos,struct firewall_rule,list);
+		printk("hello %d",tmp->src_port);
+	}
 	firewall_proc = proc_mkdir(DRV_NAME, init_net.proc_net);
 	if (!firewall_proc) {
 		LKMFIREWALL_ERROR("Unable to create " DRV_NAME "'s proc entry");
