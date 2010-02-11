@@ -14,4 +14,5 @@
 #define LKMFIREWALL_WARNING(f, a...) printk(KERN_WARNING "lkmfirewall: " f, ## a)
 
 void init_hooks(void);
+int init_procfs(void);
 #endif /* LKMFIREWALL_H_ */

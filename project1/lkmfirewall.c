@@ -16,6 +16,7 @@
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/icmp.h>
+#include <linux/slab.h>
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
@@ -34,14 +35,12 @@ MODULE_VERSION(DRV_VERSION);
 static struct proc_dir_entry *firewall_proc;
 static struct nf_hook_ops in_hook_opts;
 static struct nf_hook_ops out_hook_opts;
-/*The list of firewall rules
- *FIXME this should be static if nothing else touches it in another file
- *FIXME presumably the proc stuff will be somewhere else and will
- *FIXME want to touch this
- *
- *
- *FIXME should be one list of in and one list for out */
-struct firewall_rule rule_list;
+
+/*
+ * The list of firewall rules.
+ */
+static struct firewall_rule *rule_list_in;
+static struct firewall_rule *rule_list_out;
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
@@ -58,25 +57,55 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	return len;
 }
 
-unsigned int process_packet_in(unsigned int hooknum, struct sk_buff *skb,
+unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 		const struct net_device *in, const struct net_device *out,
-		int(*okfun)(struct sk_buff *)) {
-	return NF_DROP;
+		struct firewall_rule *rule_list) {
+	struct list_head *p, *n;
+	struct firewall_rule *rule;
+	int decision;
+
+	decision = NF_DROP;
+	// list_for_each_safe(p, n, &rule_list->list) {
+	// 	rule = list_entry(p, struct firewall_rule, list);
+	//	// TODO: Check and match the rule
+	// }
+	printk("Got one!\n");
+	return decision;
+}
+
+unsigned int process_packet_in(unsigned int hooknum, struct sk_buff *skb,
+		const struct net_device *in, const struct net_device *out, int(*okfun)(
+				struct sk_buff *)) {
+
+	return process_packet(hooknum, skb, in, out, rule_list_in);
 }
 
 unsigned int process_packet_out(unsigned int hooknum, struct sk_buff *skb,
-		const struct net_device *in, const struct net_device *out,
-		int(*okfun)(struct sk_buff *)) {
-	return NF_DROP;
+		const struct net_device *in, const struct net_device *out, int(*okfun)(
+				struct sk_buff *)) {
+	return process_packet(hooknum, skb, in, out, rule_list_out);
 }
 
 int filter_init(void) {
-	struct proc_dir_entry *stats_proc;
-	struct proc_dir_entry *rules_proc;
-
 	printk(KERN_INFO "Matt and Ian's Firewall Fun Time\n");
 
 	init_hooks();
+	return init_procfs();
+}
+
+void filter_exit(void) {
+	printk(KERN_INFO "Exiting firewall...\n");
+	nf_unregister_hook(&in_hook_opts);
+	nf_unregister_hook(&out_hook_opts);
+	remove_proc_entry("statistics", firewall_proc);
+	remove_proc_entry("rules", firewall_proc);
+	remove_proc_entry(DRV_NAME, init_net.proc_net);
+	firewall_proc = NULL;
+}
+
+int init_procfs(void) {
+	struct proc_dir_entry *stats_proc;
+	struct proc_dir_entry *rules_proc;
 
 	firewall_proc = proc_mkdir(DRV_NAME, init_net.proc_net);
 	if (!firewall_proc) {
@@ -106,29 +135,24 @@ int filter_init(void) {
 	return 0;
 }
 
-void filter_exit(void) {
-	printk(KERN_INFO "Exiting firewall...\n");
-	nf_unregister_hook(&in_hook_opts);
-	nf_unregister_hook(&out_hook_opts);
-	remove_proc_entry("statistics", firewall_proc);
-	remove_proc_entry("rules", firewall_proc);
-	remove_proc_entry(DRV_NAME, init_net.proc_net);
-	firewall_proc = NULL;
-}
-
-void init_hooks(void){
+void init_hooks(void) {
 	in_hook_opts.hook = process_packet_in;
 	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
 	in_hook_opts.pf = PF_INET;
 	in_hook_opts.priority = NF_IP_PRI_FIRST;
+	in_hook_opts.owner = THIS_MODULE;
 
 	out_hook_opts.hook = process_packet_out;
 	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
 	out_hook_opts.pf = PF_INET;
 	out_hook_opts.priority = NF_IP_PRI_FIRST;
+	out_hook_opts.owner = THIS_MODULE;
 
 	nf_register_hook(&in_hook_opts);
 	nf_register_hook(&out_hook_opts);
 }
-module_init(filter_init);
-module_exit(filter_exit);
+
+module_init(filter_init)
+;
+module_exit(filter_exit)
+;
