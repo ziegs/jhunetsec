@@ -38,8 +38,7 @@ static struct nf_hook_ops out_hook_opts;
 /*
  * The list of firewall rules.
  */
-static struct firewall_rule *rule_list_in;
-static struct firewall_rule *rule_list_out;
+static struct firewall_rule rule_list;
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
@@ -57,8 +56,7 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 }
 
 unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
-		const struct net_device *in, const struct net_device *out,
-		struct firewall_rule *rule_list) {
+		const struct net_device *in, const struct net_device *out, bool outgoing) {
 	struct list_head *p, *n;
 	struct firewall_rule *rule;
 	int decision;
@@ -68,6 +66,7 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	// 	rule = list_entry(p, struct firewall_rule, list);
 	//	// TODO: Check and match the rule
 	// }
+
 	printk("Got one!\n");
 	return decision;
 }
@@ -76,13 +75,13 @@ unsigned int process_packet_in(unsigned int hooknum, struct sk_buff *skb,
 		const struct net_device *in, const struct net_device *out, int(*okfun)(
 				struct sk_buff *)) {
 
-	return process_packet(hooknum, skb, in, out, rule_list_in);
+	return process_packet(hooknum, skb, in, out, false);
 }
 
 unsigned int process_packet_out(unsigned int hooknum, struct sk_buff *skb,
 		const struct net_device *in, const struct net_device *out, int(*okfun)(
 				struct sk_buff *)) {
-	return process_packet(hooknum, skb, in, out, rule_list_out);
+	return process_packet(hooknum, skb, in, out, true);
 }
 
 int filter_init(void) {
@@ -151,6 +150,10 @@ void init_hooks(void) {
 
 	nf_register_hook(&in_hook_opts);
 	nf_register_hook(&out_hook_opts);
+
+	/* Initialize the list of rules to deny all. */
+	rule_list.action = DENY;
+	rule_list.dest_ip =
 }
 
 module_init(filter_init)

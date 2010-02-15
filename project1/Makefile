@@ -5,9 +5,9 @@ obj-m += lkmfirewall.o
 KDIR := /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
 
-all: kmod client
+all: module client
 
-kmod:
+module:
 	$(MAKE) -C $(KDIR) M=$(PWD) modules
 client:
 	$(CC) $(CFLAGS1)  fwadmin.c -o fwadmin
