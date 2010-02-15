@@ -16,9 +16,9 @@ struct firewall_rule {
 	/* Linux kernel linked list pointer. */
 	struct list_head list;
 	/* The action the rule specifies. */
-	enum {ALLOW, BLOCK} action;
+	enum {ALLOW, DENY} action;
 	/* Specifies if  the rule for outbound traffic or inbound traffic. */
-	enum {IN, OUT} direction;
+	enum {IN, OUT, BOTH} direction;
 	/* Specifies which protocol the rule is for. */
 	enum{
 		TCP,
