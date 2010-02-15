@@ -10,9 +10,12 @@
 #define LKMFIREWALL_RULE_H_
 
 #include <linux/types.h>
-//#include <linux/list.h>
+#ifdef __KERNEL__
+#include <linux/list.h>
+#endif
+
 struct firewall_rule {
-	/* Linux kernel linked list pointer. */
+	/* Linux kernel linked list pointer. We use this header in  */
 #ifdef __KERNEL__
 	struct list_head list;
 #endif
