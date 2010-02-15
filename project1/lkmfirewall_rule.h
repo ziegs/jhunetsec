@@ -10,11 +10,12 @@
 #define LKMFIREWALL_RULE_H_
 
 #include <linux/types.h>
-#include <linux/list.h>
-
+//#include <linux/list.h>
 struct firewall_rule {
 	/* Linux kernel linked list pointer. */
+#ifdef __KERNEL__
 	struct list_head list;
+#endif
 	/* The action the rule specifies. */
 	enum {ALLOW, DENY} action;
 	/* Specifies if  the rule for outbound traffic or inbound traffic. */
