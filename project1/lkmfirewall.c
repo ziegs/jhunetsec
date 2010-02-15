@@ -13,6 +13,7 @@
 #include <linux/netfilter.h>
 #include <linux/netfilter_ipv4.h>
 #include <linux/proc_fs.h>
+#include <linux/inet.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
 #include <linux/icmp.h>
@@ -21,7 +22,7 @@
 
 #include "lkmfirewall.h"
 #include "lkmfirewall_rule.h"
-#include <linux/vmalloc.h>
+
 #define DRV_DESCRIPTION "A Simple Firewall Module"
 #define DRV_NAME "lkmfirewall"
 #define DRV_VERSION "0.1"
@@ -38,7 +39,7 @@ static struct nf_hook_ops out_hook_opts;
 /*
  * The list of firewall rules.
  */
-static struct firewall_rule rule_list;
+struct firewall_rule *rule_list;
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
@@ -62,10 +63,10 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	int decision;
 
 	decision = NF_DROP;
-	// list_for_each_safe(p, n, &rule_list->list) {
-	// 	rule = list_entry(p, struct firewall_rule, list);
-	//	// TODO: Check and match the rule
-	// }
+	list_for_each_safe(p, n, &rule_list->list) {
+		rule = list_entry(p, struct firewall_rule, list);
+		// TODO: Check and match the rule
+	}
 
 	printk("Got one!\n");
 	return decision;
@@ -152,8 +153,8 @@ void init_hooks(void) {
 	nf_register_hook(&out_hook_opts);
 
 	/* Initialize the list of rules to deny all. */
-	rule_list.action = DENY;
-	rule_list.dest_ip =
+	rule_list = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
+	rule_list->action = ALLOW;
 }
 
 module_init(filter_init)
