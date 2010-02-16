@@ -275,9 +275,8 @@ void serialize_rule(const struct firewall_rule rule) {
 	sprintf(dest_port, "%d", rule.dest_port);
 	inet_ntop(AF_INET, &rule.dest_netmask, dest_netmask, sizeof dest_netmask);
 
-	char
-			* fmt =
-					"act=%s dir=%s pro=%s ifc=%s sip=%s sprt=%s snm=%s dip=%s dprt=%s dnm=%s\n";
+	//char *fmt =	"act=%s dir=%s pro=%s ifc=%s sip=%s sprt=%s snm=%s dip=%s dprt=%s dnm=%s\n";
+	char *fmt =	"%s %s %s %s %s %s %s %s %s %s\n";
 	printf(fmt, action, direction, proto, rule.iface, src_ip, src_port,
 			src_netmask, dest_ip, dest_port, dest_netmask);
 	/*char str[s];

@@ -20,6 +20,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/parser.h>
+#include <linux/types.h>
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
@@ -152,6 +153,7 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 ssize_t set_rules(struct file *filp, const char __user *buff,
 		unsigned long len, void *data) {
 	char *rule_string, *p, *val;
+	const char *end;
 	int token;
 	substring_t args[MAX_OPT_ARGS];
 	struct firewall_rule *rule;
@@ -162,60 +164,108 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	}
 
 	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
-
+	token = 0;
 	while ((p = strsep(&rule_string, " ")) != NULL) {
-		LKMFIREWALL_INFO("Parsing rule %s", p);
 		if (!strlen(p))
 			continue;
-		token = match_token(p, tokens, args);
-		val = match_strdup(&args[0]);
 		switch (token) {
-		case opt_direction:
-			if (strcmp(val, "IN"))
-				rule->direction = IN;
-			else if (strcmp(val, "OUT"))
-				rule->direction = OUT;
+		case 0: //action
+			if (strcmp(p, "ALLOW"))
+				rule->action = ALLOW;
 			else
+				rule->action = DENY;
+			break;
+		case 1: // direction
+			if (strcmp(p, "IN"))
+				rule->direction = IN;
+			else if (strcmp(p, "OUT"))
+				rule->direction = OUT;
+			else if (strcmp(p, "BOTH"))
 				rule->direction = BOTH;
 			break;
-		case opt_action:
-			if (strcmp(val, "DENY"))
-				rule->action = DENY;
-			else
-				rule->action = ALLOW;
-			break;
-		case opt_protocol:
-			if (strcmp(val, "TCP"))
+		case 2: // protocol
+			if (strcmp(p, "TCP"))
 				rule->protocol = TCP;
-			else if (strcmp(val, "UDP"))
+			else if (strcmp(p, "UDP"))
 				rule->protocol = UDP;
-			else if (strcmp(val, "ICMP"))
+			else if (strcmp(p, "ICMP"))
 				rule->protocol = ICMP;
 			else
 				rule->protocol = ALL;
 			break;
-		case opt_iface:
-			rule->iface = val;
+		case 3: // iface
+			rule->iface = p;
 			break;
-		case opt_saddr:
-			in4_pton(val, strlen(val), (void *)rule->src_ip, '\n', NULL);
+		case 4: // source ip
+			in4_pton(p, strlen(p), (u8 *)&rule->src_ip, '\n', NULL);
 			break;
-		case opt_sport:
+		case 5: // source port
 			break;
-		case opt_smask:
-			in4_pton(val, strlen(val), (void *)rule->src_netmask, '\n', NULL);
+		case 6: // source netmask
+			in4_pton(p, strlen(p), (u8 *)&rule->src_netmask, '\n', NULL);
 			break;
-		case opt_daddr:
-			in4_pton(val, strlen(val), (void *)rule->dest_ip, '\n', NULL);
+		case 7: // dest ip
+			in4_pton(p, strlen(p), (u8 *)&rule->dest_ip, '\n', NULL);
 			break;
-		case opt_dmask:
-			in4_pton(val, strlen(val), (void *)rule->dest_netmask, '\n', NULL);
+		case 8: // dest port
 			break;
-		case opt_dport:
+		case 9: // dest netmask
+			in4_pton(p, strlen(p), (u8 *)&rule->dest_netmask, '\n', NULL);
 			break;
-		default:
-			continue;
 		}
+		token++;
+//		LKMFIREWALL_ERROR("Parsing rule %s", p);
+//		if (!strlen(p))
+//			continue;
+//		token = match_token(p, tokens, args);
+//		val = match_strdup(&args[0]);
+//		switch (token) {
+//		case opt_direction:
+//			if (strcmp(val, "IN"))
+//				rule->direction = IN;
+//			else if (strcmp(val, "OUT"))
+//				rule->direction = OUT;
+//			else
+//				rule->direction = BOTH;
+//			break;
+//		case opt_action:
+//			if (strcmp(val, "DENY"))
+//				rule->action = DENY;
+//			else
+//				rule->action = ALLOW;
+//			break;
+//		case opt_protocol:
+//			if (strcmp(val, "TCP"))
+//				rule->protocol = TCP;
+//			else if (strcmp(val, "UDP"))
+//				rule->protocol = UDP;
+//			else if (strcmp(val, "ICMP"))
+//				rule->protocol = ICMP;
+//			else
+//				rule->protocol = ALL;
+//			break;
+//		case opt_iface:
+//			rule->iface = val;
+//			break;
+//		case opt_saddr:
+//			in4_pton(val, strlen(val), (void *)rule->src_ip, '\n', NULL);
+//			break;
+//		case opt_sport:
+//			break;
+//		case opt_smask:
+//			in4_pton(val, strlen(val), (void *)rule->src_netmask, '\n', NULL);
+//			break;
+//		case opt_daddr:
+//			in4_pton(val, strlen(val), (void *)rule->dest_ip, '\n', NULL);
+//			break;
+//		case opt_dmask:
+//			in4_pton(val, strlen(val), (void *)rule->dest_netmask, '\n', NULL);
+//			break;
+//		case opt_dport:
+//			break;
+//		default:
+//			continue;
+//		}
 	}
 	list_add_tail_rcu(&rule->list, &rule_list.list);
 
