@@ -18,6 +18,8 @@
 #include <linux/tcp.h>
 #include <linux/icmp.h>
 #include <linux/slab.h>
+#include <linux/vmalloc.h>
+#include <linux/parser.h>
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
@@ -35,6 +37,33 @@ MODULE_VERSION(DRV_VERSION);
 static struct proc_dir_entry *firewall_proc;
 static struct nf_hook_ops in_hook_opts;
 static struct nf_hook_ops out_hook_opts;
+
+enum {
+	opt_direction,
+	opt_action,
+	opt_protocol,
+	opt_iface,
+	opt_saddr,
+	opt_sport,
+	opt_smask,
+	opt_daddr,
+	opt_dport,
+	opt_dmask
+};
+
+static const match_table_t tokens = {
+     { opt_direction, "dir=%s" },
+     { opt_action, "act=%s" },
+     { opt_protocol, "pro=%s" },
+     { opt_iface, "pro=%s" },
+     { opt_saddr, "sip=%s" },
+     { opt_sport, "sprt=%d" },
+     { opt_smask, "snm=%s" },
+     { opt_daddr, "dip=%s" },
+     { opt_dport, "dprt=%d" },
+     { opt_dmask, "dnm=%s" }
+};
+
 
 /*
  * The list of firewall rules.
@@ -122,6 +151,73 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 
 ssize_t set_rules(struct file *filp, const char __user *buff,
 		unsigned long len, void *data) {
+	char *rule_string, *p, *val;
+	int token;
+	substring_t args[MAX_OPT_ARGS];
+	struct firewall_rule *rule;
+
+	rule_string = kmalloc(len*sizeof(char), GFP_KERNEL);
+	if (copy_from_user(rule_string, buff, len) != 0) {
+		return -EFAULT;
+	}
+
+	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
+
+	while ((p = strsep(&rule_string, " ")) != NULL) {
+		if (!strlen(p))
+			continue;
+		token = match_token(p, tokens, args);
+		val = match_strdup(&args[0]);
+		switch (token) {
+		case opt_direction:
+			if (strcmp(val, "IN"))
+				rule->direction = IN;
+			else if (strcmp(val, "OUT"))
+				rule->direction = OUT;
+			else
+				rule->direction = BOTH;
+			break;
+		case opt_action:
+			if (strcmp(val, "DENY"))
+				rule->action = DENY;
+			else
+				rule->action = ALLOW;
+			break;
+		case opt_protocol:
+			if (strcmp(val, "TCP"))
+				rule->protocol = TCP;
+			else if (strcmp(val, "UDP"))
+				rule->protocol = UDP;
+			else if (strcmp(val, "ICMP"))
+				rule->protocol = ICMP;
+			else
+				rule->protocol = ALL;
+			break;
+		case opt_iface:
+			rule->iface = val;
+			break;
+		case opt_saddr:
+			in4_pton(val, strlen(val), (void *)rule->src_ip, '\n', NULL);
+			break;
+		case opt_sport:
+			break;
+		case opt_smask:
+			in4_pton(val, strlen(val), (void *)rule->src_netmask, '\n', NULL);
+			break;
+		case opt_daddr:
+			in4_pton(val, strlen(val), (void *)rule->dest_ip, '\n', NULL);
+			break;
+		case opt_dmask:
+			in4_pton(val, strlen(val), (void *)rule->dest_netmask, '\n', NULL);
+			break;
+		case opt_dport:
+			break;
+		default:
+			continue;
+		}
+	}
+	list_add_tail_rcu(&rule->list, &rule_list.list);
+
 	return len;
 }
 

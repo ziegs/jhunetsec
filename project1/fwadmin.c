@@ -277,7 +277,7 @@ void serialize_rule(const struct firewall_rule rule) {
 
 	char
 			* fmt =
-					"act %s\ndir %s\npro %s\nifc %s\nsip %s\nspt %s\nsnm %s\ndip %s\ndprt %s\ndnm %s\n\n";
+					"act=%s dir=%s pro=%s ifc=%s sip=%s sprt=%s snm=%s dip=%s dprt=%s dnm=%s\n";
 	printf(fmt, action, direction, proto, rule.iface, src_ip, src_port,
 			src_netmask, dest_ip, dest_port, dest_netmask);
 	/*char str[s];

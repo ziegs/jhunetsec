@@ -45,4 +45,6 @@ struct firewall_rule {
 	unsigned int applied;
 };
 
+typedef struct firewall_rule firewall_rule_t;
+
 #endif /* LKMFIREWALL_RULE_H_ */
