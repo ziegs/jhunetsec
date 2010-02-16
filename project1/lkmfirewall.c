@@ -39,78 +39,43 @@ static struct proc_dir_entry *firewall_proc;
 static struct nf_hook_ops in_hook_opts;
 static struct nf_hook_ops out_hook_opts;
 
-enum {
-	opt_direction,
-	opt_action,
-	opt_protocol,
-	opt_iface,
-	opt_saddr,
-	opt_sport,
-	opt_smask,
-	opt_daddr,
-	opt_dport,
-	opt_dmask
-};
-
-static const match_table_t tokens = {
-     { opt_direction, "dir=%s" },
-     { opt_action, "act=%s" },
-     { opt_protocol, "pro=%s" },
-     { opt_iface, "pro=%s" },
-     { opt_saddr, "sip=%s" },
-     { opt_sport, "sprt=%d" },
-     { opt_smask, "snm=%s" },
-     { opt_daddr, "dip=%s" },
-     { opt_dport, "dprt=%d" },
-     { opt_dmask, "dnm=%s" }
-};
-
-
 /*
  * The list of firewall rules.
  */
 struct firewall_rule rule_list;
 
-void protocol_to_string(int protocol, char* dst) {
+char* protocol_to_string(int protocol) {
 	switch(protocol) {
 	case TCP:
-		dst = "TCP\0";
-		break;
+		return "TCP";
 	case UDP:
-		dst = "UDP\0";
-		break;
+		return "UDP";
 	case ICMP:
-		dst = "ICMP";
-		break;
+		return "ICMP";
 	default:
-		dst = "ALL\0";
-		break;
+		return "ALL";
 	}
 }
 
-void action_to_string(int action, char* dst) {
+char* action_to_string(int action) {
 	switch(action) {
 	case ALLOW:
-		dst = "ALLOW";
-		break;
+		return "ALLOW";
 	case DENY:
-		dst = "DENY";
-		break;
+		return "DENY";
 	default:
-		dst = "ERROR";
+		return "";
 	}
 }
 
-void direction_to_string(int direction, char* dst) {
+char* direction_to_string(int direction) {
 	switch(direction) {
 	case IN:
-		dst = "IN";
-		break;
+		return "IN";
 	case OUT:
-		dst = "OUT";
-		break;
+		return "OUT";
 	default:
-		dst = "OMG";
+		return "";
 	}
 }
 
@@ -128,7 +93,7 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 	struct list_head *p, *n;
 	struct firewall_rule *rule;
 	unsigned int rule_num;
-	char protocol[16], action[16], direction[16];
+	char *protocol, *action, *direction;
 
 	if (off > 0) {
 		*eof = 1;
@@ -137,11 +102,11 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 	rule_num = 0;
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
-		protocol_to_string(rule->protocol, protocol);
-		action_to_string(rule->action, action);
-		direction_to_string(rule->direction, direction);
+		protocol = protocol_to_string(rule->protocol);
+		action = action_to_string(rule->action);
+		direction = direction_to_string(rule->direction);
 
-		len += sprintf(page, "%d %s %s %s %s %pI4. %pI4. %d %pI4. %pI4. %d\n", rule_num++,
+		len += sprintf(page, "%d %s %s %s %s %pI4 %pI4 %d %pI4 %pI4 %d\n", rule_num++,
 				action, direction, rule->iface, protocol,
 				&rule->src_ip, &rule->src_netmask, rule->src_port,
 				&rule->dest_ip, &rule->dest_netmask, rule->dest_port);
@@ -152,10 +117,8 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 
 ssize_t set_rules(struct file *filp, const char __user *buff,
 		unsigned long len, void *data) {
-	char *rule_string, *p, *val;
-	const char *end;
+	char *rule_string, *p;
 	int token;
-	substring_t args[MAX_OPT_ARGS];
 	struct firewall_rule *rule;
 
 	rule_string = kmalloc(len*sizeof(char), GFP_KERNEL);
@@ -200,6 +163,7 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 			in4_pton(p, strlen(p), (u8 *)&rule->src_ip, '\n', NULL);
 			break;
 		case 5: // source port
+			rule->src_port = simple_strtoul(p, NULL, 0);
 			break;
 		case 6: // source netmask
 			in4_pton(p, strlen(p), (u8 *)&rule->src_netmask, '\n', NULL);
@@ -208,64 +172,13 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 			in4_pton(p, strlen(p), (u8 *)&rule->dest_ip, '\n', NULL);
 			break;
 		case 8: // dest port
+			rule->dest_port = simple_strtoul(p, NULL, 0);
 			break;
 		case 9: // dest netmask
 			in4_pton(p, strlen(p), (u8 *)&rule->dest_netmask, '\n', NULL);
 			break;
 		}
 		token++;
-//		LKMFIREWALL_ERROR("Parsing rule %s", p);
-//		if (!strlen(p))
-//			continue;
-//		token = match_token(p, tokens, args);
-//		val = match_strdup(&args[0]);
-//		switch (token) {
-//		case opt_direction:
-//			if (strcmp(val, "IN"))
-//				rule->direction = IN;
-//			else if (strcmp(val, "OUT"))
-//				rule->direction = OUT;
-//			else
-//				rule->direction = BOTH;
-//			break;
-//		case opt_action:
-//			if (strcmp(val, "DENY"))
-//				rule->action = DENY;
-//			else
-//				rule->action = ALLOW;
-//			break;
-//		case opt_protocol:
-//			if (strcmp(val, "TCP"))
-//				rule->protocol = TCP;
-//			else if (strcmp(val, "UDP"))
-//				rule->protocol = UDP;
-//			else if (strcmp(val, "ICMP"))
-//				rule->protocol = ICMP;
-//			else
-//				rule->protocol = ALL;
-//			break;
-//		case opt_iface:
-//			rule->iface = val;
-//			break;
-//		case opt_saddr:
-//			in4_pton(val, strlen(val), (void *)rule->src_ip, '\n', NULL);
-//			break;
-//		case opt_sport:
-//			break;
-//		case opt_smask:
-//			in4_pton(val, strlen(val), (void *)rule->src_netmask, '\n', NULL);
-//			break;
-//		case opt_daddr:
-//			in4_pton(val, strlen(val), (void *)rule->dest_ip, '\n', NULL);
-//			break;
-//		case opt_dmask:
-//			in4_pton(val, strlen(val), (void *)rule->dest_netmask, '\n', NULL);
-//			break;
-//		case opt_dport:
-//			break;
-//		default:
-//			continue;
-//		}
 	}
 	list_add_tail_rcu(&rule->list, &rule_list.list);
 
@@ -279,10 +192,10 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	struct firewall_rule *rule;
 	int decision;
 
-	decision = NF_DROP;
+	decision = NF_ACCEPT;
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
-		LKMFIREWALL_ERROR("iface: %s", rule->iface);
+		LKMFIREWALL_INFO("Consider rule for %pI4:%d\n", &rule->src_ip, rule->src_port);
 		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == ALL)) {
 			return NF_DROP;
 		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == ALL)) {
