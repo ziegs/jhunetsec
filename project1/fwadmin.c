@@ -42,7 +42,9 @@ int main(int argc, char **argv) {
 				{ "destip",required_argument, 0, 'd' },
 				{ "destport", required_argument,0, 'e' },
 				{ "destnetmask", required_argument, 0, 'f' },
-				{ 0, 0,0, 0 } };
+				{"iface",required_argument,0,'q'},
+				{ 0, 0,0, 0 }
+		};
 		/* getopt_long stores the option index here. */
 		int option_index = 0;
 
@@ -65,13 +67,13 @@ int main(int argc, char **argv) {
 			printf("\n");
 			break;
 		case 'i':
-			printf("Action IN\n");
+			printf("Direction IN\n");
 			//direction = "IN";
 			rule.direction=IN;
 			direction_set = 1;
 			break;
 		case 'o':
-			printf("Action OUT\n");
+			printf("Direction OUT\n");
 			//direction = "OUT";
 			rule.direction=OUT;
 			direction_set = 1;
@@ -104,7 +106,7 @@ int main(int argc, char **argv) {
 				//action = optarg;
 				rule.action = DENY;
 				action_set = 1;
-			} else if (strcmp(optarg, "UNBLOCK")) {
+			} else if (strcmp(optarg, "UNBLOCK") == 0) {
 				//action = optarg;
 				rule.action = ALLOW;
 				action_set = 1;
@@ -135,7 +137,7 @@ int main(int argc, char **argv) {
 			break;
 		case 'u': // source netmask
 			printf("src netmask with %s\n", optarg);
-			if (handle_ip("source netmask", optarg, &(rule.src_port), 1)) {
+			if (handle_ip("source netmask", optarg, &(rule.src_netmask), 1)) {
 				//srcnetmask = optarg;
 				dest_or_src_msk_or_port_or_ip_set =1;
 			}
@@ -160,12 +162,15 @@ int main(int argc, char **argv) {
 			break;
 		case 'f': // destination netmask
 			printf("destination netmask with %s\n", optarg);
-			if (handle_ip("destination netmask", optarg, &(rule.dest_port), 1)) {
+			if (handle_ip("destination netmask", optarg, &(rule.dest_netmask), 1)) {
 				//destnetmask = optarg;
 				dest_or_src_msk_or_port_or_ip_set =1;
 			} else {
 				abort();
 			}
+			break;
+		case 'q'://iface flag
+			rule.iface=optarg;
 			break;
 		case '?':
 			/* getopt_long already printed an error message. */
@@ -173,6 +178,9 @@ int main(int argc, char **argv) {
 
 		default:
 			abort();
+		}
+		if(rule.iface == NULL){
+			rule.iface = "ANY";
 		}
 	}
 
@@ -199,7 +207,7 @@ int handle_ip(const char * name, const char *ip, __be32 *ip_num,
 		return 1;
 	} else if (printerr) {
 		fprintf(stderr, "Invalid %s : %s \n", name, ip);
-		fprintf(stderr,"The %s must be between 0.0.0.0 and 255.255.255.255 inclusive",name);
+		fprintf(stderr,"The %s must be between 0.0.0.0 and 255.255.255.255 inclusive\n",name);
 		return 0;
 	} else {
 		return 0;
@@ -208,7 +216,7 @@ int handle_ip(const char * name, const char *ip, __be32 *ip_num,
 int handle_port(const char * name, const char * port, __be32 *port_num,
 		 int printerr) {
 	int tmp = atoi(port);
-	if (tmp > 0 && tmp < 65535) {
+	if (tmp >= 0 && tmp <= 65535) {
 		*port_num = tmp;
 		return 1;
 	} else if (printerr) {
@@ -255,6 +263,9 @@ void serialize_rule(const struct firewall_rule rule){
 		proto = "ICMP";
 	}
 	inet_ntop(AF_INET,&rule.src_ip,src_ip,sizeof src_ip);
+
+
+
 	sprintf(src_port,"%d",rule.src_port);
 	inet_ntop(AF_INET,&rule.src_netmask, src_netmask, sizeof src_netmask);
 
@@ -263,9 +274,9 @@ void serialize_rule(const struct firewall_rule rule){
 	inet_ntop(AF_INET,&rule.dest_netmask, dest_netmask, sizeof dest_netmask);
 
 	char * fmt =
-			"act %s\ndir %s\npro %s\nsip %s\nspt %s\nsnm %s\ndip %s\ndprt %s\ndnm %s\n\n";
-	printf(fmt,action,direction, proto,src_ip,src_port, src_netmask, dest_ip,
-			dest_port,dest_netmask);
+			"act %s\ndir %s\npro %s\nifc %s\nsip %s\nspt %s\nsnm %s\ndip %s\ndprt %s\ndnm %s\n\n";
+	printf(fmt,action,direction, proto,rule.iface,src_ip,src_port, src_netmask,
+			dest_ip,dest_port,dest_netmask);
 	/*char str[s];
 	sprintf(str,fmt,action,direction, proto,src_ip,src_port, src_netmask, dest_ip,
 			dest_port,dest_netmask);
