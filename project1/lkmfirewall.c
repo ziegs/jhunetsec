@@ -39,16 +39,85 @@ static struct nf_hook_ops out_hook_opts;
 /*
  * The list of firewall rules.
  */
-struct firewall_rule *rule_list;
+struct firewall_rule rule_list;
+
+void protocol_to_string(int protocol, char* dst) {
+	switch(protocol) {
+	case TCP:
+		dst = "TCP\0";
+		break;
+	case UDP:
+		dst = "UDP\0";
+		break;
+	case ICMP:
+		dst = "ICMP";
+		break;
+	default:
+		dst = "ALL\0";
+		break;
+	}
+}
+
+void action_to_string(int action, char* dst) {
+	switch(action) {
+	case ALLOW:
+		dst = "ALLOW";
+		break;
+	case DENY:
+		dst = "DENY";
+		break;
+	default:
+		dst = "ERROR";
+	}
+}
+
+void direction_to_string(int direction, char* dst) {
+	switch(direction) {
+	case IN:
+		dst = "IN";
+		break;
+	case OUT:
+		dst = "OUT";
+		break;
+	default:
+		dst = "OMG";
+	}
+}
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
 	return 0;
 }
 
+/* Sends the user the rule list. Matches-ish iptables output format:
+ * rule_num action direction iface protocol src src_netmask src_port dst dst_netmask dst_port
+ */
 int get_rules(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
-	return 0;
+	int len;
+	struct list_head *p, *n;
+	struct firewall_rule *rule;
+	unsigned int rule_num;
+	char protocol[16], action[16], direction[16];
+
+	if (off > 0) {
+		*eof = 1;
+	}
+	len = 0;
+	rule_num = 0;
+	list_for_each_safe(p, n, &(rule_list.list)) {
+		rule = list_entry(p, struct firewall_rule, list);
+		protocol_to_string(rule->protocol, protocol);
+		action_to_string(rule->action, action);
+		direction_to_string(rule->direction, direction);
+
+		len += sprintf(page, "%d %s %s %s %s %pI4. %pI4. %d %pI4. %pI4. %d\n", rule_num++,
+				action, direction, rule->iface, protocol,
+				&rule->src_ip, &rule->src_netmask, rule->src_port,
+				&rule->dest_ip, &rule->dest_netmask, rule->dest_port);
+	}
+
+	return len;
 }
 
 ssize_t set_rules(struct file *filp, const char __user *buff,
@@ -57,32 +126,24 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 }
 
 unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
-		const struct net_device *in, const struct net_device *out, bool outgoing) {
+		const struct net_device *in, const struct net_device *out, int(*okfun)(
+				struct sk_buff *)) {
 	struct list_head *p, *n;
 	struct firewall_rule *rule;
 	int decision;
 
 	decision = NF_DROP;
-	list_for_each_safe(p, n, &rule_list->list) {
+	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
-		// TODO: Check and match the rule
+		LKMFIREWALL_ERROR("iface: %s", rule->iface);
+		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == ALL)) {
+			return NF_DROP;
+		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == ALL)) {
+			return NF_ACCEPT;
+		}
 	}
-
 	printk("Got one!\n");
 	return decision;
-}
-
-unsigned int process_packet_in(unsigned int hooknum, struct sk_buff *skb,
-		const struct net_device *in, const struct net_device *out, int(*okfun)(
-				struct sk_buff *)) {
-
-	return process_packet(hooknum, skb, in, out, false);
-}
-
-unsigned int process_packet_out(unsigned int hooknum, struct sk_buff *skb,
-		const struct net_device *in, const struct net_device *out, int(*okfun)(
-				struct sk_buff *)) {
-	return process_packet(hooknum, skb, in, out, true);
 }
 
 int filter_init(void) {
@@ -137,13 +198,13 @@ int init_procfs(void) {
 }
 
 void init_hooks(void) {
-	in_hook_opts.hook = process_packet_in;
+	in_hook_opts.hook = process_packet;
 	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
 	in_hook_opts.pf = PF_INET;
 	in_hook_opts.priority = NF_IP_PRI_FIRST;
 	in_hook_opts.owner = THIS_MODULE;
 
-	out_hook_opts.hook = process_packet_out;
+	out_hook_opts.hook = process_packet;
 	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
 	out_hook_opts.pf = PF_INET;
 	out_hook_opts.priority = NF_IP_PRI_FIRST;
@@ -152,9 +213,7 @@ void init_hooks(void) {
 	nf_register_hook(&in_hook_opts);
 	nf_register_hook(&out_hook_opts);
 
-	/* Initialize the list of rules to deny all. */
-	rule_list = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
-	rule_list->action = ALLOW;
+	INIT_LIST_HEAD(&rule_list.list);
 }
 
 module_init(filter_init)

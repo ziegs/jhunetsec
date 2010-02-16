@@ -28,7 +28,7 @@ struct firewall_rule {
 		TCP,
 		UDP,
 		ICMP,
-		ANY
+		ALL
 	} protocol;
 	/* Interface */
 	char* iface;
@@ -38,8 +38,8 @@ struct firewall_rule {
 	__be32 src_port;
 	/* Destination identifying rules*/
 	__be32 dest_ip;
-	__be32 dest_port;
 	__be32 dest_netmask;
+	__be32 dest_port;
 
 	/* For statistics */
 	unsigned int applied;
