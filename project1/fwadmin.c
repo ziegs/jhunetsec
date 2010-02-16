@@ -9,13 +9,17 @@
 #include <string.h>
 #include "lkmfirewall_rule.h"
 #include "fwadmin.h"
-/*This file modifed from the GNU get opts example at
+/*Parts of this file  are modifed from the GNU get opts example at
  * http://www.gnu.org/s/libc/manual/html_node/
  * Getopt-Long-Option-Example.html#Getopt-Long-Option-Example
  * */
 int main(int argc, char **argv) {
 	static struct firewall_rule rule;
-	static int in_out;
+	int action_set = 0;
+	int direction_set = 0;
+	int proto_set = 0 ;
+	int  dest_or_src_msk_or_port_or_ip_set=0;
+	/*static int in_out;
 	char * direction = "";
 	char * proto = "";
 	char * action = "";
@@ -24,7 +28,7 @@ int main(int argc, char **argv) {
 	char * srcnetmask = "";
 	char * destip = "";
 	char * destport = "";
-	char * destnetmask = "";
+	char * destnetmask = "";*/
 
 	while (1) {
 		static struct option long_options[] = {
@@ -34,7 +38,7 @@ int main(int argc, char **argv) {
 				{ "action",required_argument, 0, 'a' },
 				{ "srcip", required_argument, 0,'s' },
 				{ "srcport", required_argument, 0, 't' },
-				{"srcnetmask", required_argument, 0, 'u' },
+				{ "srcnetmask", required_argument, 0, 'u' },
 				{ "destip",required_argument, 0, 'd' },
 				{ "destport", required_argument,0, 'e' },
 				{ "destnetmask", required_argument, 0, 'f' },
@@ -61,16 +65,21 @@ int main(int argc, char **argv) {
 			printf("\n");
 			break;
 		case 'i':
-			direction = "IN";
+			printf("Action IN\n");
+			//direction = "IN";
 			rule.direction=IN;
+			direction_set = 1;
 			break;
 		case 'o':
-			direction = "OUT";
+			printf("Action OUT\n");
+			//direction = "OUT";
 			rule.direction=OUT;
+			direction_set = 1;
 			break;
 		case 'p': // protocol
 			printf("protocal with %s\n", optarg);
-			proto = optarg;
+			proto_set = 1;
+			//proto = optarg;
 			if (strcmp(optarg, "TCP") == 0) {
 				rule.protocol = TCP;
 			} else if (strcmp(optarg, "UDP") == 0) {
@@ -80,8 +89,9 @@ int main(int argc, char **argv) {
 			} else if (strcmp(optarg, "ANY") == 0) {
 				rule.protocol = ANY;
 			} else {
-				proto = "";
-				printf("Invald protcal : %s. \n Valid protocasl are TCP,UDP,ICMP,ALL",
+				proto_set = 0;
+				//proto = "";
+				printf("Invalid protocol : %s. \n Valid protocol are TCP,UDP,ICMP,ALL",
 						optarg);
 				abort();
 			}
@@ -89,13 +99,15 @@ int main(int argc, char **argv) {
 			break;
 
 		case 'a': // action
-			printf("action with %s", optarg);
+			printf("action with %s\n", optarg);
 			if (strcmp(optarg, "BLOCK") == 0) {
-				action = optarg;
-				rule.action = BLOCK;
+				//action = optarg;
+				rule.action = DENY;
+				action_set = 1;
 			} else if (strcmp(optarg, "UNBLOCK")) {
-				action = optarg;
+				//action = optarg;
 				rule.action = ALLOW;
+				action_set = 1;
 			} else {
 				fprintf(
 						stderr,
@@ -107,14 +119,16 @@ int main(int argc, char **argv) {
 		case 's': // source ip
 			printf("source ip %s\n", optarg);
 			if (handle_ip("source ip", optarg, &(rule.src_ip), 1)) {
-				scrip = optarg;
+				//scrip = optarg;
+				dest_or_src_msk_or_port_or_ip_set =1;
 			} else {
 				abort();
 			}
 			break;
 		case 't': // source port
 			if (handle_port("source port", optarg, &(rule.src_port), 1)) {
-				srcport = optarg;
+				//srcport = optarg;
+				dest_or_src_msk_or_port_or_ip_set =1;
 			} else {
 				abort();
 			}
@@ -122,13 +136,15 @@ int main(int argc, char **argv) {
 		case 'u': // source netmask
 			printf("src netmask with %s\n", optarg);
 			if (handle_ip("source netmask", optarg, &(rule.src_port), 1)) {
-				srcnetmask = optarg;
+				//srcnetmask = optarg;
+				dest_or_src_msk_or_port_or_ip_set =1;
 			}
 			break;
 		case 'd': // destination ip
 			printf("destination ip %s\n", optarg);
 			if (handle_ip("destination ip", optarg, &(rule.dest_ip), 1)) {
-				destip = optarg;
+				//destip = optarg;
+				dest_or_src_msk_or_port_or_ip_set =1;
 			} else {
 				abort();
 			}
@@ -136,7 +152,8 @@ int main(int argc, char **argv) {
 		case 'e': // destination  port
 			printf("destination port %s \n", optarg);
 			if (handle_port("destination port", optarg, &(rule.dest_port), 1)) {
-				destport = optarg;
+				//destport = optarg;
+				dest_or_src_msk_or_port_or_ip_set =1;
 			} else {
 				abort();
 			}
@@ -144,7 +161,8 @@ int main(int argc, char **argv) {
 		case 'f': // destination netmask
 			printf("destination netmask with %s\n", optarg);
 			if (handle_ip("destination netmask", optarg, &(rule.dest_port), 1)) {
-				destnetmask = optarg;
+				//destnetmask = optarg;
+				dest_or_src_msk_or_port_or_ip_set =1;
 			} else {
 				abort();
 			}
@@ -156,6 +174,19 @@ int main(int argc, char **argv) {
 		default:
 			abort();
 		}
+	}
+
+	if(!action_set){
+		fprintf(stderr,"Please specify an action of BLOCK or UNBLOCK using --action ACTION.\n");
+	}
+	if(!proto_set){
+		fprintf(stderr,"Please specify a protocol of TCP,UDP,ICMP,ANY using --proto PROTO\n");
+	}
+	if(!dest_or_src_msk_or_port_or_ip_set){
+		fprintf(stderr,"Please specify a filter such as source ,source port,source netmask, or the equivilnents for destination\n");
+	}
+	if(!dest_or_src_msk_or_port_or_ip_set || !action_set || ! proto_set){
+		abort();
 	}
 	serialize_rule(rule);
 }
@@ -196,16 +227,16 @@ void serialize_rule(const struct firewall_rule rule){
 	char * direction = "";
 	char * proto = "";
 	char * action = "";
-	char * src_ip = "";
+	char  src_ip [512] ;
 	char src_port[6]; // max size of a valid source port
-	char * src_netmask = "";
-	char * dest_ip = "";
+	char  src_netmask[512];
+	char  dest_ip[512];
 	char  dest_port[6]; // max size of a valid destination port
-	char * dest_netmask = "";
+	char  dest_netmask[512];
 	if (rule.action == ALLOW){
 		action = "ALLLOW";
-	}else if(rule.action == BLOCK){
-		action = "BLOCK";
+	}else if(rule.action == DENY){
+		action = "DENY";
 	}
 
 	if(rule.direction == IN ){
@@ -223,18 +254,14 @@ void serialize_rule(const struct firewall_rule rule){
 	}else if (rule.protocol == ICMP){
 		proto = "ICMP";
 	}
-	struct in_addr tmp;
-	tmp.s_addr = rule.src_ip;
-	src_ip = inet_ntoa(tmp);
+	inet_ntop(AF_INET,&rule.src_ip,src_ip,sizeof src_ip);
 	sprintf(src_port,"%d",rule.src_port);
-	tmp.s_addr = rule.src_netmask;
-	src_netmask= inet_ntoa(tmp);
-	tmp.s_addr=rule.dest_ip;
-	dest_ip = inet_ntoa(tmp);
+	inet_ntop(AF_INET,&rule.src_netmask, src_netmask, sizeof src_netmask);
+
+	inet_ntop(AF_INET,&rule.dest_ip, dest_ip, sizeof dest_ip);
 	sprintf(dest_port,"%d",rule.dest_port);
-	tmp.s_addr=rule.dest_netmask;
-	dest_netmask = inet_ntoa(tmp);
-	int s = 0;
+	inet_ntop(AF_INET,&rule.dest_netmask, dest_netmask, sizeof dest_netmask);
+
 	char * fmt =
 			"act %s\ndir %s\npro %s\nsip %s\nspt %s\nsnm %s\ndip %s\ndprt %s\ndnm %s\n\n";
 	printf(fmt,action,direction, proto,src_ip,src_port, src_netmask, dest_ip,
