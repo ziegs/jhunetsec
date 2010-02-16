@@ -164,6 +164,7 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
 
 	while ((p = strsep(&rule_string, " ")) != NULL) {
+		LKMFIREWALL_INFO("Parsing rule %s", p);
 		if (!strlen(p))
 			continue;
 		token = match_token(p, tokens, args);
