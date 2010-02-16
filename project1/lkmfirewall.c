@@ -106,8 +106,8 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 		action = action_to_string(rule->action);
 		direction = direction_to_string(rule->direction);
 
-		len += sprintf(page, "%d %s %s %s %s %pI4 %pI4 %d %pI4 %pI4 %d\n", rule_num++,
-				action, direction, rule->iface, protocol,
+		len += sprintf(&page[len], "%d %s %s %s %s %pI4 %pI4 %d %pI4 %pI4 %d\n",
+				rule_num++,	action, direction, protocol, rule->iface,
 				&rule->src_ip, &rule->src_netmask, rule->src_port,
 				&rule->dest_ip, &rule->dest_netmask, rule->dest_port);
 	}
