@@ -10,8 +10,12 @@
 #define LKMFIREWALL_RULE_H_
 
 #include <linux/types.h>
+#include <linux/netfilter.h>
 #ifdef __KERNEL__
 #include <linux/list.h>
+#include <linux/in.h>
+#else
+#include <netinet/in.h>
 #endif
 
 struct firewall_rule {
@@ -20,14 +24,14 @@ struct firewall_rule {
 	struct list_head list;
 #endif
 	/* The action the rule specifies. */
-	enum {ALLOW, DENY} action;
+	enum {ALLOW = NF_ACCEPT, DENY = NF_DROP} action;
 	/* Specifies if  the rule for outbound traffic or inbound traffic. */
 	enum {IN, OUT, BOTH} direction;
 	/* Specifies which protocol the rule is for. */
 	enum{
-		TCP,
-		UDP,
-		ICMP,
+		TCP = IPPROTO_TCP,
+		UDP = IPPROTO_UDP,
+		ICMP = IPPROTO_ICMP,
 		ALL
 	} protocol;
 	/* Interface */

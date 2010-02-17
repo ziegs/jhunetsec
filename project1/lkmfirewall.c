@@ -16,11 +16,13 @@
 #include <linux/inet.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
 #include <linux/icmp.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/parser.h>
 #include <linux/types.h>
+#include <net/ip.h>
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
@@ -114,43 +116,62 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 	return len;
 }
 
-ssize_t set_rules(struct file *filp, const char __user *buff,
-		unsigned long len, void *data) {
-	char *rule_string, *p;
-	int token;
-	struct firewall_rule *rule;
+int delete_rule(int rule_num) {
+	int i = 0;
+	struct list_head *p, *n;
+	struct list_head *found = NULL;
+	struct firewall_rule *found_rule = NULL;
 
-	rule_string = kmalloc(len*sizeof(char), GFP_KERNEL);
-	if (copy_from_user(rule_string, buff, len) != 0) {
-		return -EFAULT;
+	list_for_each_safe(p, n, &(rule_list.list)) {
+		if (rule_num == i) {
+			found = p;
+			break;
+		}
+		i++;
 	}
+
+	if (found) {
+		found_rule = list_entry(found, struct firewall_rule, list);
+		list_del_rcu(p);
+		kfree(found_rule);
+		return 1;
+	}
+
+	return 0;
+}
+
+int add_rule(char *rule_string, int len) {
+	char *p;
+	struct firewall_rule *rule;
+	int token;
 
 	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
 	token = 0;
+	LKMFIREWALL_ERROR("%s", rule_string);
 	while ((p = strsep(&rule_string, " ")) != NULL) {
 		if (!strlen(p))
 			continue;
 		switch (token) {
 		case 0: //action
-			if (strcmp(p, "ALLOW"))
+			if (strcmp(p, "ALLOW") == 0)
 				rule->action = ALLOW;
 			else
 				rule->action = DENY;
 			break;
 		case 1: // direction
-			if (strcmp(p, "IN"))
+			if (strcmp(p, "IN") == 0)
 				rule->direction = IN;
-			else if (strcmp(p, "OUT"))
+			else if (strcmp(p, "OUT") == 0)
 				rule->direction = OUT;
-			else if (strcmp(p, "BOTH"))
+			else if (strcmp(p, "BOTH") == 0)
 				rule->direction = BOTH;
 			break;
 		case 2: // protocol
-			if (strcmp(p, "TCP"))
+			if (strcmp(p, "TCP") == 0)
 				rule->protocol = TCP;
-			else if (strcmp(p, "UDP"))
+			else if (strcmp(p, "UDP") == 0)
 				rule->protocol = UDP;
-			else if (strcmp(p, "ICMP"))
+			else if (strcmp(p, "ICMP") == 0)
 				rule->protocol = ICMP;
 			else
 				rule->protocol = ALL;
@@ -159,49 +180,137 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 			rule->iface = p;
 			break;
 		case 4: // source ip
-			in4_pton(p, strlen(p), (u8 *)&rule->src_ip, '\n', NULL);
+			in4_pton(p, strlen(p), (u8 *) &rule->src_ip, '\n', NULL);
 			break;
 		case 5: // source port
 			rule->src_port = simple_strtoul(p, NULL, 0);
 			break;
 		case 6: // source netmask
-			in4_pton(p, strlen(p), (u8 *)&rule->src_netmask, '\n', NULL);
+			in4_pton(p, strlen(p), (u8 *) &rule->src_netmask, '\n', NULL);
 			break;
 		case 7: // dest ip
-			in4_pton(p, strlen(p), (u8 *)&rule->dest_ip, '\n', NULL);
+			in4_pton(p, strlen(p), (u8 *) &rule->dest_ip, '\n', NULL);
 			break;
 		case 8: // dest port
 			rule->dest_port = simple_strtoul(p, NULL, 0);
 			break;
 		case 9: // dest netmask
-			in4_pton(p, strlen(p), (u8 *)&rule->dest_netmask, '\n', NULL);
+			in4_pton(p, strlen(p), (u8 *) &rule->dest_netmask, '\n', NULL);
 			break;
+		default:
+			LKMFIREWALL_WARNING("Too many arguments to add: %s", p);
+			kfree(rule);
+			return -E2BIG;
 		}
 		token++;
 	}
 	list_add_tail_rcu(&rule->list, &rule_list.list);
-
 	return len;
+}
+
+ssize_t set_rules(struct file *filp, const char __user *buff,
+		unsigned long len, void *data) {
+	char *rule_string, *p;
+	int token;
+
+	rule_string = kmalloc(len*sizeof(char), GFP_KERNEL);
+	if (copy_from_user(rule_string, buff, len) != 0) {
+		return -EFAULT;
+	}
+
+	if ((p = strsep(&rule_string, " ")) == NULL)
+		return -EINVAL;
+
+	if (strcmp(p, "ADD") == 0) {
+		return add_rule(rule_string, len);
+	} else if (strcmp(p, "DELETE") == 0) {
+		if ((p = strsep(&rule_string, " ")) == NULL)
+			return -EINVAL;
+		token = simple_strtoul(p, NULL, 0);
+		if (!delete_rule(token)) {
+			LKMFIREWALL_WARNING("Could not delete rule %d", token);
+		}
+	} else {
+		LKMFIREWALL_ERROR("Invalid firewall command.");
+		return -EINVAL;
+	}
+	return len;
+}
+
+int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
+	const struct iphdr *iph;
+	const struct udphdr *hdr, *_hdr;
+	const struct icmphdr *icmphdr, *_icmphdr;
+	__be32 daddr, saddr;
+	__be32 dport, sport;
+
+	if (!skb)
+		return true; // If there's no socket buffer its nonsense anyway.
+	if (!(iph = ip_hdr(skb)))
+		return true; // If there's no IP header, just pass it on through.
+	if (iph->protocol == rule->protocol || rule->protocol == ALL) {
+		if (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP) {
+			hdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_hdr), &_hdr);
+			if (!hdr)
+				return false;
+			saddr = iph->saddr;
+			daddr = iph->daddr;
+			sport = hdr->source;
+			dport = hdr->dest;
+			if ((rule->src_port == sport || rule->src_port == 0) &&
+					rule->dest_port == dport || rule->dest_port == 0) {
+
+			}
+
+		} else if (iph->protocol == IPPROTO_ICMP) {
+			icmphdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_icmphdr), &_icmphdr);
+			if (!icmphdr)
+				return false;
+		} else {
+			return false;
+		}
+	}
+	return false;
+}
+
+
+int check_rule(struct firewall_rule *rule, struct sk_buff *skb,
+		const struct net_device *dev) {
+	if (rule->iface == dev->name || strcmp(rule->iface, "ANY"))
+		return check_ip_packet(rule, skb);
+	return false;
 }
 
 unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 		const struct net_device *in, const struct net_device *out, int(*okfun)(
 				struct sk_buff *)) {
 	struct list_head *p, *n;
-	struct firewall_rule *rule;
+	struct firewall_rule *rule, *filter;
 	int decision;
 
 	decision = NF_ACCEPT;
+	filter = NULL;
+	/* Loop through each rule, and check to see if it applies. The last
+	 * applicable rule in the chain is the one we use. This ensures UNBLOCK
+	 * commands get applied (assuming they come after a more broad rule). */
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
 		LKMFIREWALL_INFO("Consider rule for %pI4:%d\n", &rule->src_ip, rule->src_port);
-		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == ALL)) {
-			return NF_DROP;
-		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == ALL)) {
-			return NF_ACCEPT;
+		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == BOTH)) {
+			if (check_rule(rule, skb, in))
+				filter = rule;
+		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == BOTH)) {
+			if (check_rule(rule, skb, in))
+				filter = rule;
 		}
 	}
-	return decision;
+
+	if (filter) {
+		filter->applied++;
+		return filter->action;
+	} else {
+		return NF_ACCEPT;
+	}
 }
 
 int filter_init(void) {
