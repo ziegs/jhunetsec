@@ -10,28 +10,39 @@
 #include "lkmfirewall_rule.h"
 #include "fwadmin.h"
 
-#define PROC_PATH "/proc/net/lkmfirewall/rules"
-
+#define PROC_RULES_PATH "/proc/net/lkmfirewall/rules"
+#define PROC_STATS_PATH "/proc/net/lkmfirewall/statistics"
 int print_rules() {
+	return print_info(PROC_RULES_PATH);
+}
+int print_statistics(){
+	return print_info(PROC_STATS_PATH);
+}
+int print_info(const char* path){
 	FILE * fp;
 	char buf[2048] = "";
 
-	if (!(fp = fopen(PROC_PATH, "r"))) {
-		perror("Error reading firewall rules. Please ensure module is loaded");
+	if (!(fp = fopen(path, "r"))) {
+		fprintf(stderr,"Error reading %s. Please ensure the module is load",path);
+		perror("");
 		return -1;
 	}
-	while (fgets(buf, sizeof(buf), fp))
+	while (fgets(buf, sizeof(buf), fp)){
 		printf("%s", buf);
+	}
 	fclose(fp);
+
+	return 1;
 }
 int write_rule(const struct firewall_rule rule) {
-	FILE * fp = fopen(PROC_PATH, "w");
+	FILE * fp = fopen(PROC_RULES_PATH, "w");
 	if (fp == NULL) {
 		perror("Error setting firewall rule");
 		return -1;
 	}
 	serialize_rule(rule, fp);
 	fclose(fp);
+	return 1;
 }
 
 /*Parts of this file  are modifed from the GNU get opts example at
@@ -70,6 +81,7 @@ int main(int argc, char **argv) {
 				{ "destnetmask", required_argument, 0, 'f' },
 				{ "iface", required_argument, 0, 'q' },
 				{ "print", no_argument, 0, 'r' },
+				{"stats",no_argument,0,'z'},
 				{ 0, 0, 0, 0 }
 		};
 		/* getopt_long stores the option index here. */
@@ -204,9 +216,9 @@ int main(int argc, char **argv) {
 			rule.iface = optarg;
 			break;
 		case 'r': // print
-			print_rules();
-			return 1;
-
+			return print_rules();
+		case 'z':
+			return print_statistics();
 		case '?':
 			/* getopt_long already printed an error message. */
 			break;
@@ -235,7 +247,7 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 	serialize_rule(rule, stdout);
-	write_rule(rule);
+	return write_rule(rule);
 }
 
 int handle_ip(const char * name, const char *ip, __be32 *ip_num, int printerr) {
