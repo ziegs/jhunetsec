@@ -9,6 +9,9 @@
 #include <string.h>
 #include "lkmfirewall_rule.h"
 #include "fwadmin.h"
+
+#define PROC_PATH "/proc/net/lkmfirewall/rules"
+
 /*Parts of this file  are modifed from the GNU get opts example at
  * http://www.gnu.org/s/libc/manual/html_node/
  * Getopt-Long-Option-Example.html#Getopt-Long-Option-Example
@@ -34,14 +37,17 @@ int main(int argc, char **argv) {
 
 		static struct option long_options[] = { { "in", no_argument, 0, 'i' },
 				{ "out", no_argument, 0, 'o' }, { "proto", required_argument,
-						0, 'p' }, { "action", required_argument, 0, 'a' }, {
-						"srcip", required_argument, 0, 's' }, { "srcport",
-						required_argument, 0, 't' }, { "srcnetmask",
-						required_argument, 0, 'u' }, { "destip",
-						required_argument, 0, 'd' }, { "destport",
-						required_argument, 0, 'e' }, { "destnetmask",
-						required_argument, 0, 'f' }, { "iface",
-						required_argument, 0, 'q' }, { 0, 0, 0, 0 } };
+						0, 'p' }, { "action", required_argument, 0, 'a' },
+						{"srcip", required_argument, 0, 's' },
+						{ "srcport",required_argument, 0, 't' },
+						{ "srcnetmask",required_argument, 0, 'u' },
+						{ "destip",required_argument, 0, 'd' },
+						{ "destport",required_argument, 0, 'e' },
+						{ "destnetmask",required_argument, 0, 'f' },
+						{ "iface",required_argument, 0, 'q' },
+						{"print",no_argument,0,'r'},
+						{ 0, 0, 0, 0 }
+				};
 		/* getopt_long stores the option index here. */
 		int option_index = 0;
 
@@ -93,7 +99,7 @@ int main(int argc, char **argv) {
 				printf(
 						"Invalid protocol: %s. \n Valid protocols are TCP, UDP, ICMP, ALL\n",
 						optarg);
-				abort();
+				return -1;
 			}
 
 			break;
@@ -113,70 +119,75 @@ int main(int argc, char **argv) {
 						stderr,
 						"Invalid argument : --action accepts BLOCK and UNBLOCK, not  %s\n",
 						optarg);
-				abort();
+				return -1;
 			}
 			break;
 		case 's': // source ip
 			printf("source ip %s\n", optarg);
-			if (handle_ip("source ip", optarg, &(rule.src_ip), 1)) {
+			if (handle_ip("source ip", optarg, &(rule.src_ip), 1) == 1) {
 				//scrip = optarg;
 				dest_or_src_msk_or_port_or_ip_set = 1;
 			} else {
-				abort();
+				return -1;
 			}
 			break;
 		case 't': // source port
-			if (handle_port("source port", optarg, &(rule.src_port), 1)) {
+			if (handle_port("source port", optarg, &(rule.src_port), 1) == 1) {
 				//srcport = optarg;
 				dest_or_src_msk_or_port_or_ip_set = 1;
 			} else {
-				abort();
+				return -1;
 			}
 			break;
 		case 'u': // source netmask
 			printf("src netmask with %s\n", optarg);
-			if (handle_ip("source netmask", optarg, &(rule.src_netmask), 1)) {
+			if (handle_ip("source netmask", optarg, &(rule.src_netmask), 1)
+					== 1) {
 				//srcnetmask = optarg;
 				dest_or_src_msk_or_port_or_ip_set = 1;
 			}
 			break;
 		case 'd': // destination ip
 			printf("destination ip %s\n", optarg);
-			if (handle_ip("destination ip", optarg, &(rule.dest_ip), 1)) {
+			if (handle_ip("destination ip", optarg, &(rule.dest_ip), 1) == 1) {
 				//destip = optarg;
 				dest_or_src_msk_or_port_or_ip_set = 1;
 			} else {
-				abort();
+				return -1;
 			}
 			break;
 		case 'e': // destination  port
 			printf("destination port %s \n", optarg);
-			if (handle_port("destination port", optarg, &(rule.dest_port), 1)) {
+			if (handle_port("destination port", optarg, &(rule.dest_port), 1)
+					== 1) {
 				//destport = optarg;
 				dest_or_src_msk_or_port_or_ip_set = 1;
 			} else {
-				abort();
+				return -1;
 			}
 			break;
 		case 'f': // destination netmask
 			printf("destination netmask with %s\n", optarg);
 			if (handle_ip("destination netmask", optarg, &(rule.dest_netmask),
-					1)) {
+					1) == 1) {
 				//destnetmask = optarg;
 				dest_or_src_msk_or_port_or_ip_set = 1;
 			} else {
-				abort();
+				return -1;
 			}
 			break;
 		case 'q'://iface flag
 			rule.iface = optarg;
 			break;
+		case 'r': // print
+			print_rules();
+			return 1;
+
 		case '?':
 			/* getopt_long already printed an error message. */
 			break;
-
 		default:
-			abort();
+			return -1;
 		}
 		if (rule.iface == NULL) {
 			rule.iface = "ANY";
@@ -192,13 +203,15 @@ int main(int argc, char **argv) {
 				"Please specify a protocol of TCP, UDP, ICMP, or ALL using --proto PROTO\n");
 	}
 	if (!dest_or_src_msk_or_port_or_ip_set) {
-		fprintf(stderr,
+		fprintf(
+				stderr,
 				"Please specify a filter such as source, source port, source netmask, or the equivalents for destination\n");
 	}
 	if (!dest_or_src_msk_or_port_or_ip_set || !action_set || !proto_set) {
-		abort();
+		return -1;
 	}
-	serialize_rule(rule);
+	serialize_rule(rule, stdout);
+	write_rule(rule);
 }
 
 int handle_ip(const char * name, const char *ip, __be32 *ip_num, int printerr) {
@@ -212,9 +225,9 @@ int handle_ip(const char * name, const char *ip, __be32 *ip_num, int printerr) {
 				stderr,
 				"The %s must be between 0.0.0.0 and 255.255.255.255 inclusive\n",
 				name);
-		return 0;
+		return -1;
 	} else {
-		return 0;
+		return -1;
 	}
 }
 int handle_port(const char * name, const char * port, __be32 *port_num,
@@ -226,16 +239,16 @@ int handle_port(const char * name, const char * port, __be32 *port_num,
 	} else if (printerr) {
 		fprintf(stderr, "Invalid %s  : %s\n", name, optarg);
 		fprintf(stderr, "%s bust be between 0 and 65535 inclusive.\n", name);
-		return 0;
+		return -1;
 	} else {
-		return 0;
+		return -1;
 	}
 }
 int handle_netmask(const char * name, const char * netmask,
 		__be32 *net_mask_num, int printerr) {
 	return handle_ip(name, netmask, net_mask_num, printerr);
 }
-void serialize_rule(const struct firewall_rule rule) {
+void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 	char *direction = "";
 	char *proto = "";
 	char *action = "";
@@ -275,11 +288,33 @@ void serialize_rule(const struct firewall_rule rule) {
 	inet_ntop(AF_INET, &rule.dest_netmask, dest_netmask, sizeof dest_netmask);
 
 	//char *fmt =	"act=%s dir=%s pro=%s ifc=%s sip=%s sprt=%s snm=%s dip=%s dprt=%s dnm=%s\n";
-	char *fmt =	"%s %s %s %s %s %s %s %s %s %s\n";
-	printf(fmt, action, direction, proto, rule.iface, src_ip, src_port,
+	char *fmt = "%s %s %s %s %s %s %s %s %s %s\n";
+	fprintf(fp, fmt, action, direction, proto, rule.iface, src_ip, src_port,
 			src_netmask, dest_ip, dest_port, dest_netmask);
 	/*char str[s];
 	 sprintf(str,fmt,action,direction, proto,src_ip,src_port, src_netmask, dest_ip,
 	 dest_port,dest_netmask);
 	 puts(str);*/
+}
+int print_rules() {
+	FILE * fp = fopen(PROC_PATH, "r");
+	char c;
+	if (fp == NULL) {
+		perror("Is the firewall running? Error reading firewall rules");
+		return -1;
+	} else {
+		while (c = getc(fp) != EOF) {
+			putchar(c);
+		}
+	}
+	fclose(fp);
+}
+int write_rule(const struct firewall_rule rule) {
+	FILE * fp = fopen(PROC_PATH, "w");
+	if (fp == NULL) {
+		perror("Is the firewall running ?Error setting firewall rule");
+		return -1;
+	}
+	serialize_rule(rule, fp);
+	fclose(fp);
 }
