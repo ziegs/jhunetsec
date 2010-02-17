@@ -18,4 +18,4 @@ int handle_netmask(const char * name, const char * netmask,
 		__be32 *net_mask_num,  int printerr);
 #endif /* FWADMIN_H_ */
 
-void serialize_rule(const struct firewall_rule rule);
+void serialize_rule(const struct firewall_rule rule, FILE *fp);
