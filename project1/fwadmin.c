@@ -192,8 +192,7 @@ int main(int argc, char **argv) {
 				"Please specify a protocol of TCP, UDP, ICMP, or ALL using --proto PROTO\n");
 	}
 	if (!dest_or_src_msk_or_port_or_ip_set) {
-		fprintf(
-				stderr,
+		fprintf(stderr,
 				"Please specify a filter such as source, source port, source netmask, or the equivalents for destination\n");
 	}
 	if (!dest_or_src_msk_or_port_or_ip_set || !action_set || !proto_set) {
@@ -237,9 +236,9 @@ int handle_netmask(const char * name, const char * netmask,
 	return handle_ip(name, netmask, net_mask_num, printerr);
 }
 void serialize_rule(const struct firewall_rule rule) {
-	char * direction = "";
-	char * proto = "";
-	char * action = "";
+	char *direction = "";
+	char *proto = "";
+	char *action = "";
 	char src_ip[512];
 	char src_port[6]; // max size of a valid source port
 	char src_netmask[512];
