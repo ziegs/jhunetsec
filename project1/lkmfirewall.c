@@ -119,95 +119,119 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 int delete_rule(int rule_num) {
 	int i = 0;
 	struct list_head *p, *n;
+	struct list_head *found = NULL;
+	struct firewall_rule *found_rule = NULL;
+
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		if (rule_num == i) {
-			list_del_rcu(p);
-			return 1;
+			found = p;
+			break;
 		}
 		i++;
 	}
+
+	if (found) {
+		found_rule = list_entry(found, struct firewall_rule, list);
+		list_del_rcu(p);
+		kfree(found_rule);
+		return 1;
+	}
+
 	return 0;
+}
+
+int add_rule(char *rule_string) {
+	char *p;
+	struct firewall_rule *rule;
+	int token;
+
+	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
+	token = 0;
+	LKMFIREWALL_ERROR("%s", rule_string);
+	while ((p = strsep(&rule_string, " ")) != NULL) {
+		if (!strlen(p))
+			continue;
+		switch (token) {
+		case 0: //action
+			if (strcmp(p, "ALLOW") == 0)
+				rule->action = ALLOW;
+			else
+				rule->action = DENY;
+			break;
+		case 1: // direction
+			if (strcmp(p, "IN") == 0)
+				rule->direction = IN;
+			else if (strcmp(p, "OUT") == 0)
+				rule->direction = OUT;
+			else if (strcmp(p, "BOTH") == 0)
+				rule->direction = BOTH;
+			break;
+		case 2: // protocol
+			if (strcmp(p, "TCP") == 0)
+				rule->protocol = TCP;
+			else if (strcmp(p, "UDP") == 0)
+				rule->protocol = UDP;
+			else if (strcmp(p, "ICMP") == 0)
+				rule->protocol = ICMP;
+			else
+				rule->protocol = ALL;
+			break;
+		case 3: // iface
+			rule->iface = p;
+			break;
+		case 4: // source ip
+			in4_pton(p, strlen(p), (u8 *) &rule->src_ip, '\n', NULL);
+			break;
+		case 5: // source port
+			rule->src_port = simple_strtoul(p, NULL, 0);
+			break;
+		case 6: // source netmask
+			in4_pton(p, strlen(p), (u8 *) &rule->src_netmask, '\n', NULL);
+			break;
+		case 7: // dest ip
+			in4_pton(p, strlen(p), (u8 *) &rule->dest_ip, '\n', NULL);
+			break;
+		case 8: // dest port
+			rule->dest_port = simple_strtoul(p, NULL, 0);
+			break;
+		case 9: // dest netmask
+			in4_pton(p, strlen(p), (u8 *) &rule->dest_netmask, '\n', NULL);
+			break;
+		default:
+			LKMFIREWALL_WARNING("Too many arguments to add: %s", p);
+		}
+		token++;
+	}
+	list_add_tail_rcu(&rule->list, &rule_list.list);
+	return 1;
 }
 
 ssize_t set_rules(struct file *filp, const char __user *buff,
 		unsigned long len, void *data) {
 	char *rule_string, *p;
 	int token;
-	struct firewall_rule *rule;
 
 	rule_string = kmalloc(len*sizeof(char), GFP_KERNEL);
 	if (copy_from_user(rule_string, buff, len) != 0) {
 		return -EFAULT;
 	}
 
-	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
 	if ((p = strsep(&rule_string, " ")) == NULL)
 		return -EFAULT;
-	if (strcmp(p, "ADD")) {
-		token = 0;
-		while ((p = strsep(&rule_string, " ")) != NULL) {
-			if (!strlen(p))
-				continue;
-			switch (token) {
-			case 0: //action
-				if (strcmp(p, "ALLOW"))
-					rule->action = ALLOW;
-				else
-					rule->action = DENY;
-				break;
-			case 1: // direction
-				if (strcmp(p, "IN"))
-					rule->direction = IN;
-				else if (strcmp(p, "OUT"))
-					rule->direction = OUT;
-				else if (strcmp(p, "BOTH"))
-					rule->direction = BOTH;
-				break;
-			case 2: // protocol
-				if (strcmp(p, "TCP"))
-					rule->protocol = TCP;
-				else if (strcmp(p, "UDP"))
-					rule->protocol = UDP;
-				else if (strcmp(p, "ICMP"))
-					rule->protocol = ICMP;
-				else
-					rule->protocol = ALL;
-				break;
-			case 3: // iface
-				rule->iface = p;
-				break;
-			case 4: // source ip
-				in4_pton(p, strlen(p), (u8 *) &rule->src_ip, '\n', NULL);
-				break;
-			case 5: // source port
-				rule->src_port = simple_strtoul(p, NULL, 0);
-				break;
-			case 6: // source netmask
-				in4_pton(p, strlen(p), (u8 *) &rule->src_netmask, '\n', NULL);
-				break;
-			case 7: // dest ip
-				in4_pton(p, strlen(p), (u8 *) &rule->dest_ip, '\n', NULL);
-				break;
-			case 8: // dest port
-				rule->dest_port = simple_strtoul(p, NULL, 0);
-				break;
-			case 9: // dest netmask
-				in4_pton(p, strlen(p), (u8 *) &rule->dest_netmask, '\n', NULL);
-				break;
-			}
-			token++;
-		}
-	} else if (strcmp(p, "DELETE")) {
+
+	if (strcmp(p, "ADD") == 0) {
+		add_rule(rule_string);
+	} else if (strcmp(p, "DELETE") == 0) {
 		if ((p = strsep(&rule_string, " ")) == NULL)
 			return -EFAULT;
 		token = simple_strtoul(p, NULL, 0);
 		if (!delete_rule(token)) {
 			LKMFIREWALL_WARNING("Could not delete rule %d", token);
 		}
+	} else {
+		LKMFIREWALL_ERROR("Invalid firewall command.");
+		return 0;
 	}
-
-	list_add_tail_rcu(&rule->list, &rule_list.list);
-
 	return len;
 }
 
