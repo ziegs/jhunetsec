@@ -21,4 +21,3 @@ int print_rules();
 int write_rule(const struct firewall_rule rule);
 #endif /* FWADMIN_H_ */
 
-

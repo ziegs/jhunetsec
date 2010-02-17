@@ -12,6 +12,28 @@
 
 #define PROC_PATH "/proc/net/lkmfirewall/rules"
 
+int print_rules() {
+	FILE * fp;
+	char buf[2048] = "";
+
+	if (!(fp = fopen(PROC_PATH, "r"))) {
+		perror("Error reading firewall rules. Please ensure module is loaded");
+		return -1;
+	}
+	while (fgets(buf, sizeof(buf), fp))
+		printf("%s", buf);
+	fclose(fp);
+}
+int write_rule(const struct firewall_rule rule) {
+	FILE * fp = fopen(PROC_PATH, "w");
+	if (fp == NULL) {
+		perror("Error setting firewall rule");
+		return -1;
+	}
+	serialize_rule(rule, fp);
+	fclose(fp);
+}
+
 /*Parts of this file  are modifed from the GNU get opts example at
  * http://www.gnu.org/s/libc/manual/html_node/
  * Getopt-Long-Option-Example.html#Getopt-Long-Option-Example
@@ -35,19 +57,21 @@ int main(int argc, char **argv) {
 
 	while (1) {
 
-		static struct option long_options[] = { { "in", no_argument, 0, 'i' },
-				{ "out", no_argument, 0, 'o' }, { "proto", required_argument,
-						0, 'p' }, { "action", required_argument, 0, 'a' },
-						{"srcip", required_argument, 0, 's' },
-						{ "srcport",required_argument, 0, 't' },
-						{ "srcnetmask",required_argument, 0, 'u' },
-						{ "destip",required_argument, 0, 'd' },
-						{ "destport",required_argument, 0, 'e' },
-						{ "destnetmask",required_argument, 0, 'f' },
-						{ "iface",required_argument, 0, 'q' },
-						{"print",no_argument,0,'r'},
-						{ 0, 0, 0, 0 }
-				};
+		static struct option long_options[] = {
+				{ "in", no_argument, 0, 'i' },
+				{ "out", no_argument, 0, 'o' },
+				{ "proto", required_argument, 0, 'p' },
+				{ "action", required_argument, 0, 'a' },
+				{ "srcip", required_argument, 0, 's' },
+				{ "srcport", required_argument, 0, 't' },
+				{ "srcnetmask",	required_argument, 0, 'u' },
+				{ "destip",	required_argument, 0, 'd' },
+				{ "destport", required_argument, 0, 'e' },
+				{ "destnetmask", required_argument, 0, 'f' },
+				{ "iface", required_argument, 0, 'q' },
+				{ "print", no_argument, 0, 'r' },
+				{ 0, 0, 0, 0 }
+		};
 		/* getopt_long stores the option index here. */
 		int option_index = 0;
 
@@ -205,7 +229,7 @@ int main(int argc, char **argv) {
 	if (!dest_or_src_msk_or_port_or_ip_set) {
 		fprintf(
 				stderr,
-				"Please specify a filter such as source, source port, source netmask, or the equivalents for destination\n");
+				"Please specify a filter such as source, source port, source netmask, or the equivalents for destination.\n");
 	}
 	if (!dest_or_src_msk_or_port_or_ip_set || !action_set || !proto_set) {
 		return -1;
@@ -238,7 +262,7 @@ int handle_port(const char * name, const char * port, __be32 *port_num,
 		return 1;
 	} else if (printerr) {
 		fprintf(stderr, "Invalid %s  : %s\n", name, optarg);
-		fprintf(stderr, "%s bust be between 0 and 65535 inclusive.\n", name);
+		fprintf(stderr, "%s must be between 0 and 65535 inclusive.\n", name);
 		return -1;
 	} else {
 		return -1;
@@ -248,6 +272,7 @@ int handle_netmask(const char * name, const char * netmask,
 		__be32 *net_mask_num, int printerr) {
 	return handle_ip(name, netmask, net_mask_num, printerr);
 }
+
 void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 	char *direction = "";
 	char *proto = "";
@@ -296,25 +321,4 @@ void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 	 dest_port,dest_netmask);
 	 puts(str);*/
 }
-int print_rules() {
-	FILE * fp = fopen(PROC_PATH, "r");
-	char c;
-	if (fp == NULL) {
-		perror("Is the firewall running? Error reading firewall rules");
-		return -1;
-	} else {
-		while (c = getc(fp) != EOF) {
-			putchar(c);
-		}
-	}
-	fclose(fp);
-}
-int write_rule(const struct firewall_rule rule) {
-	FILE * fp = fopen(PROC_PATH, "w");
-	if (fp == NULL) {
-		perror("Is the firewall running ?Error setting firewall rule");
-		return -1;
-	}
-	serialize_rule(rule, fp);
-	fclose(fp);
-}
+
