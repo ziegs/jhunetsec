@@ -116,6 +116,19 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 	return len;
 }
 
+int delete_rule(int rule_num) {
+	int i = 0;
+	struct list_head *p, *n;
+	list_for_each_safe(p, n, &(rule_list.list)) {
+		if (rule_num == i) {
+			list_del_rcu(p);
+			return 1;
+		}
+		i++;
+	}
+	return 0;
+}
+
 ssize_t set_rules(struct file *filp, const char __user *buff,
 		unsigned long len, void *data) {
 	char *rule_string, *p;
@@ -128,59 +141,71 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	}
 
 	rule = kmalloc(sizeof(struct firewall_rule), GFP_KERNEL);
-	token = 0;
-	while ((p = strsep(&rule_string, " ")) != NULL) {
-		if (!strlen(p))
-			continue;
-		switch (token) {
-		case 0: //action
-			if (strcmp(p, "ALLOW"))
-				rule->action = ALLOW;
-			else
-				rule->action = DENY;
-			break;
-		case 1: // direction
-			if (strcmp(p, "IN"))
-				rule->direction = IN;
-			else if (strcmp(p, "OUT"))
-				rule->direction = OUT;
-			else if (strcmp(p, "BOTH"))
-				rule->direction = BOTH;
-			break;
-		case 2: // protocol
-			if (strcmp(p, "TCP"))
-				rule->protocol = TCP;
-			else if (strcmp(p, "UDP"))
-				rule->protocol = UDP;
-			else if (strcmp(p, "ICMP"))
-				rule->protocol = ICMP;
-			else
-				rule->protocol = ALL;
-			break;
-		case 3: // iface
-			rule->iface = p;
-			break;
-		case 4: // source ip
-			in4_pton(p, strlen(p), (u8 *)&rule->src_ip, '\n', NULL);
-			break;
-		case 5: // source port
-			rule->src_port = simple_strtoul(p, NULL, 0);
-			break;
-		case 6: // source netmask
-			in4_pton(p, strlen(p), (u8 *)&rule->src_netmask, '\n', NULL);
-			break;
-		case 7: // dest ip
-			in4_pton(p, strlen(p), (u8 *)&rule->dest_ip, '\n', NULL);
-			break;
-		case 8: // dest port
-			rule->dest_port = simple_strtoul(p, NULL, 0);
-			break;
-		case 9: // dest netmask
-			in4_pton(p, strlen(p), (u8 *)&rule->dest_netmask, '\n', NULL);
-			break;
+	if ((p = strsep(&rule_string, " ")) == NULL)
+		return -EFAULT;
+	if (strcmp(p, "ADD")) {
+		token = 0;
+		while ((p = strsep(&rule_string, " ")) != NULL) {
+			if (!strlen(p))
+				continue;
+			switch (token) {
+			case 0: //action
+				if (strcmp(p, "ALLOW"))
+					rule->action = ALLOW;
+				else
+					rule->action = DENY;
+				break;
+			case 1: // direction
+				if (strcmp(p, "IN"))
+					rule->direction = IN;
+				else if (strcmp(p, "OUT"))
+					rule->direction = OUT;
+				else if (strcmp(p, "BOTH"))
+					rule->direction = BOTH;
+				break;
+			case 2: // protocol
+				if (strcmp(p, "TCP"))
+					rule->protocol = TCP;
+				else if (strcmp(p, "UDP"))
+					rule->protocol = UDP;
+				else if (strcmp(p, "ICMP"))
+					rule->protocol = ICMP;
+				else
+					rule->protocol = ALL;
+				break;
+			case 3: // iface
+				rule->iface = p;
+				break;
+			case 4: // source ip
+				in4_pton(p, strlen(p), (u8 *) &rule->src_ip, '\n', NULL);
+				break;
+			case 5: // source port
+				rule->src_port = simple_strtoul(p, NULL, 0);
+				break;
+			case 6: // source netmask
+				in4_pton(p, strlen(p), (u8 *) &rule->src_netmask, '\n', NULL);
+				break;
+			case 7: // dest ip
+				in4_pton(p, strlen(p), (u8 *) &rule->dest_ip, '\n', NULL);
+				break;
+			case 8: // dest port
+				rule->dest_port = simple_strtoul(p, NULL, 0);
+				break;
+			case 9: // dest netmask
+				in4_pton(p, strlen(p), (u8 *) &rule->dest_netmask, '\n', NULL);
+				break;
+			}
+			token++;
 		}
-		token++;
+	} else if (strcmp(p, "DELETE")) {
+		if ((p = strsep(&rule_string, " ")) == NULL)
+			return -EFAULT;
+		token = simple_strtoul(p, NULL, 0);
+		if (!delete_rule(token)) {
+			LKMFIREWALL_WARNING("Could not delete rule %d", token);
+		}
 	}
+
 	list_add_tail_rcu(&rule->list, &rule_list.list);
 
 	return len;
