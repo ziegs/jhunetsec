@@ -16,11 +16,13 @@
 #include <linux/inet.h>
 #include <linux/ip.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
 #include <linux/icmp.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include <linux/parser.h>
 #include <linux/types.h>
+#include <net/ip.h>
 #include <net/net_namespace.h>
 
 #include "lkmfirewall.h"
@@ -184,24 +186,76 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	return len;
 }
 
+int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
+	const struct iphdr *iph;
+	const struct udphdr *hdr, *_hdr;
+	const struct icmphdr *icmphdr, *_icmphdr;
+	__be32 daddr, saddr;
+	__be32 dport, sport;
+
+	if (!skb)
+		return true; // If there's no socket buffer its nonsense anyway.
+	if (!(iph = ip_hdr(skb)))
+		return true; // If there's no IP header, just pass it on through.
+	if (iph->protocol == rule->protocol || rule->protocol == ALL) {
+		if (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP) {
+			hdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_hdr), &_hdr);
+			if (!hdr)
+				return false;
+			saddr = iph->saddr;
+			daddr = iph->daddr;
+			sport = hdr->source;
+			dport = hdr->dest;
+
+		} else if (iph->protocol == IPPROTO_ICMP) {
+			icmphdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_icmphdr), &_icmphdr);
+			if (!icmphdr)
+				return false;
+		} else {
+			return false;
+		}
+	}
+	return false;
+}
+
+
+int check_rule(struct firewall_rule *rule, struct sk_buff *skb,
+		const struct net_device *dev) {
+	if (rule->iface == dev->name || strcmp(rule->iface, "ANY"))
+		return check_ip_packet(rule, skb);
+	return false;
+}
+
 unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 		const struct net_device *in, const struct net_device *out, int(*okfun)(
 				struct sk_buff *)) {
 	struct list_head *p, *n;
-	struct firewall_rule *rule;
+	struct firewall_rule *rule, *filter;
 	int decision;
 
 	decision = NF_ACCEPT;
+	filter = NULL;
+	/* Loop through each rule, and check to see if it applies. The last
+	 * applicable rule in the chain is the one we use. This ensures UNBLOCK
+	 * commands get applied (assuming they come after a more broad rule). */
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
 		LKMFIREWALL_INFO("Consider rule for %pI4:%d\n", &rule->src_ip, rule->src_port);
-		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == ALL)) {
-			return NF_DROP;
-		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == ALL)) {
-			return NF_ACCEPT;
+		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == BOTH)) {
+			if (check_rule(rule, skb, in))
+				filter = rule;
+		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == BOTH)) {
+			if (check_rule(rule, skb, in))
+				filter = rule;
 		}
 	}
-	return decision;
+
+	if (filter) {
+		filter->applied++;
+		return filter->action;
+	} else {
+		return NF_ACCEPT;
+	}
 }
 
 int filter_init(void) {
