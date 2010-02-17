@@ -16,6 +16,9 @@ int handle_port(const char * name, const char * port, __be32 *port_num,
 		 int printerr);
 int handle_netmask(const char * name, const char * netmask,
 		__be32 *net_mask_num,  int printerr);
+void serialize_rule(const struct firewall_rule rule,  FILE * fp);
+int print_rules();
+int write_rule(const struct firewall_rule rule);
 #endif /* FWADMIN_H_ */
 
-void serialize_rule(const struct firewall_rule rule);
+
