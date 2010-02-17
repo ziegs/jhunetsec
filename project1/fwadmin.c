@@ -12,6 +12,7 @@
 
 #define PROC_RULES_PATH "/proc/net/lkmfirewall/rules"
 #define PROC_STATS_PATH "/proc/net/lkmfirewall/statistics"
+#define TABLE_HEADER "rule\tact\tdirc\tproto\tifc\tsrcip\t\tsrcmsk\t\tsrcport\tdestip\t\tdesmsk\t\tdestport\n"
 int print_rules() {
 	return print_info(PROC_RULES_PATH);
 }
@@ -21,12 +22,13 @@ int print_statistics(){
 int print_info(const char* path){
 	FILE * fp;
 	char buf[2048] = "";
-
 	if (!(fp = fopen(path, "r"))) {
 		fprintf(stderr,"Error reading %s. Please ensure the module is load",path);
 		perror("");
 		return -1;
 	}
+	printf("");
+	printf(TABLE_HEADER);
 	while (fgets(buf, sizeof(buf), fp)){
 		printf("%s", buf);
 	}
@@ -54,7 +56,13 @@ int main(int argc, char **argv) {
 	int action_set = 0;
 	int direction_set = 0;
 	int proto_set = 0;
-	int dest_or_src_msk_or_port_or_ip_set = 0;
+	int src_net_msk_set = 0;
+	int dest_net_msk_set = 0;
+	int src_ip_set = 0;
+	int dest_ip_set = 0;
+	int src_port_set = 0;
+	int dest_port_set = 0;
+
 	/*static int in_out;
 	 char * direction = "";
 	 char * proto = "";
@@ -162,7 +170,7 @@ int main(int argc, char **argv) {
 			printf("source ip %s\n", optarg);
 			if (handle_ip("source ip", optarg, &(rule.src_ip), 1) == 1) {
 				//scrip = optarg;
-				dest_or_src_msk_or_port_or_ip_set = 1;
+				src_ip_set  = 1;
 			} else {
 				return -1;
 			}
@@ -170,7 +178,7 @@ int main(int argc, char **argv) {
 		case 't': // source port
 			if (handle_port("source port", optarg, &(rule.src_port), 1) == 1) {
 				//srcport = optarg;
-				dest_or_src_msk_or_port_or_ip_set = 1;
+				src_port_set = 1;
 			} else {
 				return -1;
 			}
@@ -180,14 +188,14 @@ int main(int argc, char **argv) {
 			if (handle_ip("source netmask", optarg, &(rule.src_netmask), 1)
 					== 1) {
 				//srcnetmask = optarg;
-				dest_or_src_msk_or_port_or_ip_set = 1;
+				src_net_msk_set = 1;
 			}
 			break;
 		case 'd': // destination ip
 			printf("destination ip %s\n", optarg);
 			if (handle_ip("destination ip", optarg, &(rule.dest_ip), 1) == 1) {
 				//destip = optarg;
-				dest_or_src_msk_or_port_or_ip_set = 1;
+				dest_ip_set = 1;
 			} else {
 				return -1;
 			}
@@ -197,7 +205,7 @@ int main(int argc, char **argv) {
 			if (handle_port("destination port", optarg, &(rule.dest_port), 1)
 					== 1) {
 				//destport = optarg;
-				dest_or_src_msk_or_port_or_ip_set = 1;
+				dest_port_set = 1;
 			} else {
 				return -1;
 			}
@@ -207,7 +215,7 @@ int main(int argc, char **argv) {
 			if (handle_ip("destination netmask", optarg, &(rule.dest_netmask),
 					1) == 1) {
 				//destnetmask = optarg;
-				dest_or_src_msk_or_port_or_ip_set = 1;
+			  dest_net_msk_set = 1;
 			} else {
 				return -1;
 			}
@@ -233,19 +241,19 @@ int main(int argc, char **argv) {
 	if (!action_set) {
 		fprintf(stderr,
 				"Please specify an action of BLOCK or UNBLOCK using --action ACTION.\n");
+		return -1;
 	}
 	if (!proto_set) {
 		fprintf(stderr,
 				"Please specify a protocol of TCP, UDP, ICMP, or ALL using --proto PROTO\n");
-	}
-	if (!dest_or_src_msk_or_port_or_ip_set) {
-		fprintf(
-				stderr,
-				"Please specify a filter such as source, source port, source netmask, or the equivalents for destination.\n");
-	}
-	if (!dest_or_src_msk_or_port_or_ip_set || !action_set || !proto_set) {
 		return -1;
 	}
+	if((src_net_msk_set && !src_ip_set)||dest_net_msk_set && !dest_ip_set){
+		fprintf(stderr,"If you specify a source or destination netmask");
+		fprintf(stderr,"you must specify the corresponding ip address.");
+		return 0;
+	}
+
 	serialize_rule(rule, stdout);
 	return write_rule(rule);
 }
@@ -259,7 +267,7 @@ int handle_ip(const char * name, const char *ip, __be32 *ip_num, int printerr) {
 		fprintf(stderr, "Invalid %s : %s \n", name, ip);
 		fprintf(
 				stderr,
-				"The %s must be between 0.0.0.0 and 255.255.255.255 inclusive\n",
+				"The %s must be between 0.0.0.0 and 255.255.255.255 inclusive.\n",
 				name);
 		return -1;
 	} else {

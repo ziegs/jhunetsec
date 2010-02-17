@@ -105,7 +105,7 @@ int get_rules(char *page, char **start, off_t off, int count, int *eof,
 		protocol = protocol_to_string(rule->protocol);
 		action = action_to_string(rule->action);
 		direction = direction_to_string(rule->direction);
-		len += sprintf(&page[len], "%d %s %s %s %s %pI4 %pI4 %d %pI4 %pI4 %d\n",
+		len += sprintf(&page[len], "%-5d\t%s\t%s\t%s\t%s\t%-15pI4\t%-15pI4\t%-5d\t%-15pI4\t%-15pI4\t%-5d\n",
 				rule_num++,	action, direction, protocol, rule->iface,
 				&rule->src_ip, &rule->src_netmask, rule->src_port,
 				&rule->dest_ip, &rule->dest_netmask, rule->dest_port);
