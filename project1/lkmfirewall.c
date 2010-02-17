@@ -140,7 +140,7 @@ int delete_rule(int rule_num) {
 	return 0;
 }
 
-int add_rule(char *rule_string) {
+int add_rule(char *rule_string, int len) {
 	char *p;
 	struct firewall_rule *rule;
 	int token;
@@ -199,11 +199,13 @@ int add_rule(char *rule_string) {
 			break;
 		default:
 			LKMFIREWALL_WARNING("Too many arguments to add: %s", p);
+			kfree(rule);
+			return -E2BIG;
 		}
 		token++;
 	}
 	list_add_tail_rcu(&rule->list, &rule_list.list);
-	return 1;
+	return len;
 }
 
 ssize_t set_rules(struct file *filp, const char __user *buff,
@@ -217,20 +219,20 @@ ssize_t set_rules(struct file *filp, const char __user *buff,
 	}
 
 	if ((p = strsep(&rule_string, " ")) == NULL)
-		return -EFAULT;
+		return -EINVAL;
 
 	if (strcmp(p, "ADD") == 0) {
-		add_rule(rule_string);
+		return add_rule(rule_string, len);
 	} else if (strcmp(p, "DELETE") == 0) {
 		if ((p = strsep(&rule_string, " ")) == NULL)
-			return -EFAULT;
+			return -EINVAL;
 		token = simple_strtoul(p, NULL, 0);
 		if (!delete_rule(token)) {
 			LKMFIREWALL_WARNING("Could not delete rule %d", token);
 		}
 	} else {
 		LKMFIREWALL_ERROR("Invalid firewall command.");
-		return 0;
+		return -EINVAL;
 	}
 	return len;
 }
