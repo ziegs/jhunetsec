@@ -20,9 +20,8 @@ int print_rules() {
 		perror("Error reading firewall rules. Please ensure module is loaded");
 		return -1;
 	}
-	while (fgets(buf, sizeof(buf), fp)) {
+	while (fgets(buf, sizeof(buf), fp))
 		printf("%s", buf);
-	}
 	fclose(fp);
 }
 int write_rule(const struct firewall_rule rule) {
