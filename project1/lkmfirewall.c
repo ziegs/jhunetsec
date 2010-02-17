@@ -257,6 +257,10 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 			daddr = iph->daddr;
 			sport = hdr->source;
 			dport = hdr->dest;
+			if ((rule->src_port == sport || rule->src_port == 0) &&
+					rule->dest_port == dport || rule->dest_port == 0) {
+
+			}
 
 		} else if (iph->protocol == IPPROTO_ICMP) {
 			icmphdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_icmphdr), &_icmphdr);
