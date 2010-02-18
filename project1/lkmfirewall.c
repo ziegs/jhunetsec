@@ -259,8 +259,14 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 			dport = ntohs(hdr->dest);
 			if ((rule->src_port == sport || rule->src_port == 0) &&
 					(rule->dest_port == dport || rule->dest_port == 0)) {
+				LKMFIREWALL_INFO("%pI4", &saddr);
+				LKMFIREWALL_INFO("%pI4", &rule->src_ip);
+				LKMFIREWALL_INFO("%pI4", &daddr);
+				LKMFIREWALL_INFO("%pI4", &rule->dest_ip);
 				LKMFIREWALL_INFO("%d", (saddr & rule->src_netmask));
 				LKMFIREWALL_INFO("%d", (rule->src_ip & rule->src_netmask));
+				LKMFIREWALL_INFO("%d", (daddr & rule->dest_netmask));
+				LKMFIREWALL_INFO("%d", (rule->dest_ip & rule->dest_netmask));
 				if ((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask))
 					return true;
 				if ((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask))
@@ -312,7 +318,7 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 
 	if (filter) {
 		LKMFIREWALL_INFO("Applying rule %pI4:%d, mask %pI4\n", &rule->src_ip,
-				rule->src_port, rule->src_netmask);
+				rule->src_port, &rule->src_netmask);
 		filter->applied++;
 		return filter->action;
 	} else {
