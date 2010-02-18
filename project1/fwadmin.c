@@ -88,8 +88,8 @@ int main(int argc, char **argv) {
 				{ "destnetmask", required_argument, 0, 'f' },
 				{ "iface", required_argument, 0, 'q' },
 				{ "print", no_argument, 0, 'r' },
-				{"delete",required_argument,0,'y'},
-				{"stats",no_argument,0,'z'},
+				{ "delete", required_argument, 0, 'y'},
+				{ "stats", no_argument, 0, 'z'},
 				{ 0, 0, 0, 0 }
 		};
 		/* getopt_long stores the option index here. */
@@ -315,7 +315,7 @@ void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 	char dest_port[6]; // max size of a valid destination port
 	char dest_netmask[512];
 	if (rule.action == ALLOW) {
-		action = "ALLLOW";
+		action = "ALLOW";
 	} else if (rule.action == DENY) {
 		action = "DENY";
 	}
