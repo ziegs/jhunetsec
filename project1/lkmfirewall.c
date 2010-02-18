@@ -253,12 +253,14 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 			hdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_hdr), &_hdr);
 			if (!hdr)
 				return false;
-			saddr = iph->saddr;
-			daddr = iph->daddr;
-			sport = hdr->source;
-			dport = hdr->dest;
+			saddr = ntohl(iph->saddr);
+			daddr = ntohl(iph->daddr);
+			sport = ntohs(hdr->source);
+			dport = ntohs(hdr->dest);
 			if ((rule->src_port == sport || rule->src_port == 0) &&
 					(rule->dest_port == dport || rule->dest_port == 0)) {
+				LKMFIREWALL_INFO("%d", (saddr & rule->src_netmask));
+				LKMFIREWALL_INFO("%d", (rule->src_ip & rule->src_netmask));
 				if ((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask))
 					return true;
 				if ((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask))
@@ -280,7 +282,7 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 
 int check_rule(struct firewall_rule *rule, struct sk_buff *skb,
 		const struct net_device *dev) {
-	if (rule->iface == dev->name || strcmp(rule->iface, "ANY"))
+	if (rule->iface == dev->name || strcmp(rule->iface, "ANY") == 0)
 		return check_ip_packet(rule, skb);
 	return false;
 }
@@ -299,7 +301,6 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	 * commands get applied (assuming they come after a more broad rule). */
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
-		LKMFIREWALL_INFO("Consider rule for %pI4:%d\n", &rule->src_ip, rule->src_port);
 		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == BOTH)) {
 			if (check_rule(rule, skb, in))
 				filter = rule;
@@ -310,6 +311,8 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	}
 
 	if (filter) {
+		LKMFIREWALL_INFO("Applying rule %pI4:%d, mask %pI4\n", &rule->src_ip,
+				rule->src_port, rule->src_netmask);
 		filter->applied++;
 		return filter->action;
 	} else {
