@@ -83,7 +83,25 @@ char* direction_to_string(int direction) {
 
 int get_stats(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
-	return 0;
+	int len;
+	struct list_head *p, *n;
+	struct firewall_rule *rule;
+	unsigned int total;
+	unsigned int rule_num;
+	*eof = 1;
+
+	total = len = rule_num = 0;
+	list_for_each_safe(p, n, &(rule_list.list)) {
+		rule = list_entry(p, struct firewall_rule, list);
+		total += rule->applied;
+		len += sprintf(&page[len],
+						"%d\t%d\n",
+						rule_num++, rule->applied);
+	}
+	len += sprintf(&page[len], "****\n");
+	len += sprintf(&page[len], "Total blocked:\t%d\n", total);
+
+	return len;
 }
 
 /* Sends the user the rule list. Matches-ish iptables output format:
@@ -323,8 +341,6 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	}
 
 	if (filter) {
-		LKMFIREWALL_INFO("Applying rule %pI4:%d, mask %pI4\n", &rule->src_ip,
-				rule->src_port, &rule->src_netmask);
 		filter->applied++;
 		return filter->action;
 	} else {

@@ -20,7 +20,7 @@ void serialize_rule(const struct firewall_rule rule,  FILE * fp);
 
 int print_rules();
 int print_statistics();
-int print_info(const char* path);
+int print_info(const char* path, const char* header);
 
 int write_rule(const struct firewall_rule rule);
 #endif /* FWADMIN_H_ */

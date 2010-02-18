@@ -13,13 +13,15 @@
 #define PROC_RULES_PATH "/proc/net/lkmfirewall/rules"
 #define PROC_STATS_PATH "/proc/net/lkmfirewall/statistics"
 #define TABLE_HEADER "rule\tact\tdirc\tproto\tifc\tsrcip\t\tsrcmsk\t\tsrcport\tdestip\t\tdesmsk\t\tdestport\n"
+#define STAT_HEADER "rule\tblocked\n"
+
 int print_rules() {
-	return print_info(PROC_RULES_PATH);
+	return print_info(PROC_RULES_PATH, TABLE_HEADER);
 }
 int print_statistics(){
-	return print_info(PROC_STATS_PATH);
+	return print_info(PROC_STATS_PATH, STAT_HEADER);
 }
-int print_info(const char* path){
+int print_info(const char* path, const char* header){
 	FILE * fp;
 	char buf[2048] = "";
 	if (!(fp = fopen(path, "r"))) {
@@ -28,7 +30,7 @@ int print_info(const char* path){
 		return -1;
 	}
 	printf("");
-	printf(TABLE_HEADER);
+	printf("%s", header);
 	while (fgets(buf, sizeof(buf), fp)){
 		printf("%s", buf);
 	}
