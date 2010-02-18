@@ -253,10 +253,10 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 			hdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_hdr), &_hdr);
 			if (!hdr)
 				return false;
-			saddr = ntohl(iph->saddr);
-			daddr = ntohl(iph->daddr);
-			sport = ntohs(hdr->source);
-			dport = ntohs(hdr->dest);
+			saddr = iph->saddr;
+			daddr = iph->daddr;
+			sport = hdr->source;
+			dport = hdr->dest;
 			if ((rule->src_port == sport || rule->src_port == 0) &&
 					(rule->dest_port == dport || rule->dest_port == 0)) {
 				LKMFIREWALL_INFO("%pI4", &saddr);
@@ -267,9 +267,8 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 				LKMFIREWALL_INFO("%d", (rule->src_ip & rule->src_netmask));
 				LKMFIREWALL_INFO("%d", (daddr & rule->dest_netmask));
 				LKMFIREWALL_INFO("%d", (rule->dest_ip & rule->dest_netmask));
-				if ((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask))
-					return true;
-				if ((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask))
+				if (((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask)) &&
+						((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask)))
 					return true;
 				return false;
 			}
@@ -307,10 +306,10 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	 * commands get applied (assuming they come after a more broad rule). */
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
-		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == BOTH)) {
+		if (hooknum == NF_INET_LOCAL_IN && (rule->direction == IN || rule->direction == BOTH)) {
 			if (check_rule(rule, skb, in))
 				filter = rule;
-		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == BOTH)) {
+		} else if (hooknum == NF_INET_LOCAL_OUT && (rule->direction == OUT || rule->direction == BOTH)) {
 			if (check_rule(rule, skb, in))
 				filter = rule;
 		}
@@ -379,13 +378,13 @@ int init_procfs(void) {
 
 void init_hooks(void) {
 	in_hook_opts.hook = process_packet;
-	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
+	in_hook_opts.hooknum = NF_INET_LOCAL_IN;
 	in_hook_opts.pf = PF_INET;
 	in_hook_opts.priority = NF_IP_PRI_FIRST;
 	in_hook_opts.owner = THIS_MODULE;
 
 	out_hook_opts.hook = process_packet;
-	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
+	out_hook_opts.hooknum = NF_INET_LOCAL_OUT;
 	out_hook_opts.pf = PF_INET;
 	out_hook_opts.priority = NF_IP_PRI_FIRST;
 	out_hook_opts.owner = THIS_MODULE;
