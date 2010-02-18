@@ -46,18 +46,8 @@ int write_rule(const struct firewall_rule rule) {
 	fclose(fp);
 	return 1;
 }
-int delete_rule(const int rule){
-	FILE * fp = fopen(PROC_RULES_PATH,"w");
-	if(fp == NULL || 0 > fprintf(fp,"DELETE %d",rule)){
-		perror("Error deleting firewall rule. Please ensure the module is loaded");
-		return -1;
-	}
-	return 1;
-}
 
-
-
-/*Tis function is modified from the GNU get opts example at
+/*Parts of this file  are modifed from the GNU get opts example at
  * http://www.gnu.org/s/libc/manual/html_node/
  * Getopt-Long-Option-Example.html#Getopt-Long-Option-Example
  * */
@@ -72,7 +62,18 @@ int main(int argc, char **argv) {
 	int dest_ip_set = 0;
 	int src_port_set = 0;
 	int dest_port_set = 0;
-	int rule_numb;
+
+	/*static int in_out;
+	 char * direction = "";
+	 char * proto = "";
+	 char * action = "";
+	 char * scrip = "";
+	 char * srcport = "";
+	 char * srcnetmask = "";
+	 char * destip = "";
+	 char * destport = "";
+	 char * destnetmask = "";*/
+
 	while (1) {
 
 		static struct option long_options[] = {
@@ -88,7 +89,6 @@ int main(int argc, char **argv) {
 				{ "destnetmask", required_argument, 0, 'f' },
 				{ "iface", required_argument, 0, 'q' },
 				{ "print", no_argument, 0, 'r' },
-				{"delete",required_argument,0,'y'},
 				{"stats",no_argument,0,'z'},
 				{ 0, 0, 0, 0 }
 		};
@@ -225,19 +225,8 @@ int main(int argc, char **argv) {
 			break;
 		case 'r': // print
 			return print_rules();
-		case 'y':
-			rule_numb = atoi(optarg);
-			if(0 <= rule_numb){
-				return delete_rule(rule_numb);
-			} else {
-				fprintf(stderr,"Invalid rule number %d."
-						"Rule numbers must be positive.\n",rule_numb);
-				return -1;
-			}
-			break;
 		case 'z':
 			return print_statistics();
-			break;
 		case '?':
 			/* getopt_long already printed an error message. */
 			break;
@@ -344,11 +333,9 @@ void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 	inet_ntop(AF_INET, &rule.dest_netmask, dest_netmask, sizeof dest_netmask);
 
 	//char *fmt =	"act=%s dir=%s pro=%s ifc=%s sip=%s sprt=%s snm=%s dip=%s dprt=%s dnm=%s\n";
-	char *fmt = "ADD %s %s %s %s %s %s %s %s %s %s\n";
-	if(fprintf(fp, fmt, action, direction, proto, rule.iface, src_ip, src_port,
-			src_netmask, dest_ip, dest_port, dest_netmask)<0){
-			perror("Error writing to file "PROC_RULES_PATH);
-	}
+	char *fmt = "%s %s %s %s %s %s %s %s %s %s\n";
+	fprintf(fp, fmt, action, direction, proto, rule.iface, src_ip, src_port,
+			src_netmask, dest_ip, dest_port, dest_netmask);
 	/*char str[s];
 	 sprintf(str,fmt,action,direction, proto,src_ip,src_port, src_netmask, dest_ip,
 	 dest_port,dest_netmask);
