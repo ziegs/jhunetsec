@@ -251,41 +251,40 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 	const struct icmphdr *icmphdr, *_icmphdr;
 	__be32 daddr, saddr;
 	__be32 dport, sport;
+	__be32 *icmp_ports, _icmp_ports[2];
 
 	if (!skb)
 		return true; // If there's no socket buffer its nonsense anyway.
 	if (!(iph = ip_hdr(skb)))
 		return true; // If there's no IP header, just pass it on through.
+	saddr = iph->saddr;
+	daddr = iph->daddr;
 	if (iph->protocol == rule->protocol || rule->protocol == ALL) {
 		if (iph->protocol == IPPROTO_TCP || iph->protocol == IPPROTO_UDP) {
 			hdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_hdr), &_hdr);
 			if (!hdr)
 				return false;
-			saddr = iph->saddr;
-			daddr = iph->daddr;
 			sport = hdr->source;
 			dport = hdr->dest;
-			if ((rule->src_port == sport || rule->src_port == 0) &&
-					(rule->dest_port == dport || rule->dest_port == 0)) {
-				LKMFIREWALL_INFO("%pI4", &saddr);
-				LKMFIREWALL_INFO("%pI4", &rule->src_ip);
-				LKMFIREWALL_INFO("%pI4", &daddr);
-				LKMFIREWALL_INFO("%pI4", &rule->dest_ip);
-				LKMFIREWALL_INFO("%d", (saddr & rule->src_netmask));
-				LKMFIREWALL_INFO("%d", (rule->src_ip & rule->src_netmask));
-				LKMFIREWALL_INFO("%d", (daddr & rule->dest_netmask));
-				LKMFIREWALL_INFO("%d", (rule->dest_ip & rule->dest_netmask));
-				if (((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask)) &&
-						((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask)))
-					return true;
-				return false;
-			}
-
 		} else if (iph->protocol == IPPROTO_ICMP) {
 			icmphdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_icmphdr), &_icmphdr);
 			if (!icmphdr)
 				return false;
+			icmp_ports = skb_header_pointer(skb, ip_hdrlen(skb) +
+					sizeof(struct icmphdr) + (iph->ihl << 2),
+					sizeof(_icmp_ports), &_icmp_ports);
+			if (!icmp_ports) // Just let it through. This might be a poor choice.
+				return true;
+			sport = icmp_ports[0];
+			dport = icmp_ports[1];
 		} else {
+			return false;
+		}
+		if ((rule->src_port == sport || rule->src_port == 0)
+				&& (rule->dest_port == dport || rule->dest_port == 0)) {
+			if (((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask)) &&
+					((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask)))
+				return true;
 			return false;
 		}
 	}
