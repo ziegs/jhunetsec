@@ -155,8 +155,12 @@ int add_rule(char *rule_string, int len) {
 		case 0: //action
 			if (strcmp(p, "ALLOW") == 0)
 				rule->action = ALLOW;
-			else
+			else if (strcmp(p, "DENY") == 0)
 				rule->action = DENY;
+			else {
+				kfree(rule);
+				return -EINVAL;
+			}
 			break;
 		case 1: // direction
 			if (strcmp(p, "IN") == 0)
@@ -165,6 +169,10 @@ int add_rule(char *rule_string, int len) {
 				rule->direction = OUT;
 			else if (strcmp(p, "BOTH") == 0)
 				rule->direction = BOTH;
+			else {
+				kfree(rule);
+				return -EINVAL;
+			}
 			break;
 		case 2: // protocol
 			if (strcmp(p, "TCP") == 0)
