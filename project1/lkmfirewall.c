@@ -258,8 +258,12 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 			sport = hdr->source;
 			dport = hdr->dest;
 			if ((rule->src_port == sport || rule->src_port == 0) &&
-					rule->dest_port == dport || rule->dest_port == 0) {
-
+					(rule->dest_port == dport || rule->dest_port == 0)) {
+				if ((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask))
+					return true;
+				if ((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask))
+					return true;
+				return false;
 			}
 
 		} else if (iph->protocol == IPPROTO_ICMP) {
