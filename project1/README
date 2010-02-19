@@ -1,0 +1,25 @@
+Network Security 600.424 (Spring 2010)
+Project 1
+Ian Miers & Matt Ziegelbaum
+----
+
+Instructions:
+===
+
+To build, just type `make` and wait for the kernel module and fwadmin tool to build.
+
+To run, as root insmod lkmfirewall.ko, then play with fwadmin.
+
+Fwadmin options:
+
+We implemented all of the options as described in the assignment sheet and added one more. You can also set the interface (network device) that you want the rule to apply to by typing --iface <device> or --iface ANY for all devices (defaults to ANY if --iface isn't passed in). For example:
+
+fwadmin --in --srcip 172.16.75.43 --proto ALL --action BLOCK --iface eth0
+
+Design
+===
+We did the design in two phases. We began the design by having a discussion wiki-style in Google Wave, though that was more a planning and higher level talk. No actual "design" was done per se. Following the wave, we did the bulk of our planning by sitting down and writing out the firewall_rule struct in lkmfirewall_rule.h, which is shared by both the kernel and userspace code. By solidifying our struct early, we were able to guide the implementation of the firewall.
+
+The program is basically broken up into two parts: the fwadmin tool and the lkmfirewall module. The fwadmin and lkmfirewall tools both utilize the firewall_rule struct to serialize and deserialize rules for printing and loading the rules.
+
+The lkmfirewall tool is designed fairly monolithically. The code is broken up into the various callbacks required by procfs and netfilter, but other than that, the code lives in one .C file (lkmfirewall.c) and all of the magic happens there. The code could have perhaps been broken up in a slightly more modular way, but at only 735 lines of code or so for the whole project (about 360 for the kernel module), we decided to focus more on getting the implementation correct.
