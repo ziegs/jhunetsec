@@ -284,8 +284,10 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 			hdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_hdr), &_hdr);
 			if (!hdr)
 				return false;
-			sport = hdr->source;
-			dport = hdr->dest;
+			sport = ntohs(hdr->source);
+			dport = ntohs(hdr->dest);
+			LKMFIREWALL_INFO("source %d %d", rule->src_port, sport);
+			LKMFIREWALL_INFO("dest %d %d", rule->dest_port, dport);
 		} else if (iph->protocol == IPPROTO_ICMP) {
 			icmphdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_icmphdr), &_icmphdr);
 			if (!icmphdr)
