@@ -296,6 +296,14 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
+	// if someone left off source/ dest IP
+	// Then implicitly they set the netmask to zero.
+	if(!src_ip_set){
+		rule.src_netmask = 0 ;
+	}
+	if(!dest_ip_set){
+		rule.dest_netmask = 0;
+	}
 //	serialize_rule(rule, stdout);
 	return write_rule(rule);
 }
