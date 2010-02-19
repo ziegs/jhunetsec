@@ -291,11 +291,19 @@ int main(int argc, char **argv) {
 	}
 
 	if((src_net_msk_set && !src_ip_set) || dest_net_msk_set && !dest_ip_set){
-		fprintf(stderr,"If you specify a source or destination netmask");
-		fprintf(stderr,"you must specify the corresponding ip address.");
+		fprintf(stderr,"If you specify a source or destination netmask\n"
+			"you must specify the corresponding ip address.\n");
 		return 0;
 	}
 
+	// if someone left off source/ dest IP
+	// Then implicitly they set the netmask to zero.
+	if(!src_ip_set){
+		rule.src_netmask = 0 ;
+	}
+	if(!dest_ip_set){
+		rule.dest_netmask = 0;
+	}
 //	serialize_rule(rule, stdout);
 	return write_rule(rule);
 }
