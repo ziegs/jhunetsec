@@ -15,20 +15,6 @@
 #define TABLE_HEADER "rule\tact\tdirc\tproto\tifc\tsrcip\t\tsrcmsk\t\tsrcport\tdestip\t\tdesmsk\t\tdestport\n"
 #define STAT_HEADER "rule\tblocked\n"
 int help(){
-	/*{ "in", no_argument, 0, 'i' },
-	{ "out", no_argument, 0, 'o' },
-	{ "proto", required_argument, 0, 'p' },
-	{ "action", required_argument, 0, 'a' },
-	{ "srcip", required_argument, 0, 's' },
-	{ "srcport", required_argument, 0, 't' },
-	{ "srcnetmask",	required_argument, 0, 'u' },
-	{ "destip",	required_argument, 0, 'd' },
-	{ "destport", required_argument, 0, 'e' },
-	{ "destnetmask", required_argument, 0, 'f' },
-	{ "iface", required_argument, 0, 'q' },
-	{ "print", no_argument, 0, 'r' },
-	{ "delete", required_argument, 0, 'y'},
-	{ "stats", no_argument, 0, 'z'},};*/
 	return printf("fwadmin manages lkmfirewall."
 			"It takes one of the following commands:\n"
 			"\t--action {BLOCK,UNBLOCK}\tblock or unblock\n"
@@ -110,6 +96,8 @@ int delete_rule(const unsigned int rule){
  * */
 int main(int argc, char **argv) {
 	static struct firewall_rule rule;
+	rule.src_netmask = UINT32_MAX; // set netmask to 255.255.255.255
+	rule.dest_netmask = UINT32_MAX;
 	int action_set = 0;
 	int direction_set = 0;
 	int proto_set = 0;
