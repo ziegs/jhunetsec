@@ -107,6 +107,8 @@ int get_stats(char *page, char **start, off_t off, int count, int *eof,
 /* Sends the user the rule list. Matches-ish iptables output format:
  * rule_num action direction iface protocol src src_netmask src_port dst dst_netmask dst_port
  */
+
+
 int get_rules(char *page, char **start, off_t off, int count, int *eof,
 		void *data) {
 	int len;
@@ -234,7 +236,7 @@ int add_rule(char *rule_string, int len) {
 	return len;
 }
 
-ssize_t set_rules(struct file *filp, const char __user *buff,
+int set_rules(struct file *filp, const char __user *buff,
 		unsigned long len, void *data) {
 	char *rule_string, *p;
 	int token;
@@ -395,7 +397,6 @@ int init_procfs(void) {
 	}
 	rules_proc->read_proc = get_rules;
 	rules_proc->write_proc = set_rules;
-
 	return 0;
 }
 

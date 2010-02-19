@@ -10,6 +10,7 @@
 #define FWADMIN_H_
 
 #define checkEnum(enum,name){ if(enum.name ==)}
+int help();
 int handle_ip(const char * name, const char *ip, __be32 *ip_num,
 		 int printerr);
 int handle_port(const char * name, const char * port, __be32 *port_num,
