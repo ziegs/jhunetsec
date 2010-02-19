@@ -14,18 +14,59 @@
 #define PROC_STATS_PATH "/proc/net/lkmfirewall/statistics"
 #define TABLE_HEADER "rule\tact\tdirc\tproto\tifc\tsrcip\t\tsrcmsk\t\tsrcport\tdestip\t\tdesmsk\t\tdestport\n"
 #define STAT_HEADER "rule\tblocked\n"
-
+int help(){
+	/*{ "in", no_argument, 0, 'i' },
+	{ "out", no_argument, 0, 'o' },
+	{ "proto", required_argument, 0, 'p' },
+	{ "action", required_argument, 0, 'a' },
+	{ "srcip", required_argument, 0, 's' },
+	{ "srcport", required_argument, 0, 't' },
+	{ "srcnetmask",	required_argument, 0, 'u' },
+	{ "destip",	required_argument, 0, 'd' },
+	{ "destport", required_argument, 0, 'e' },
+	{ "destnetmask", required_argument, 0, 'f' },
+	{ "iface", required_argument, 0, 'q' },
+	{ "print", no_argument, 0, 'r' },
+	{ "delete", required_argument, 0, 'y'},
+	{ "stats", no_argument, 0, 'z'},};*/
+	return printf("fwadmin manages lkmfirewall."
+			"It takes one of the following commands:\n"
+			"\t--action {BLOCK,UNBLOCK}\tblock or unblock\n"
+				"\t\t\t\t\tpackets meeting the specified rule.\n"
+			"\t--print\t\t\t\tPrint the existing rules.\n"
+			"\t--delete RULE_NUM\t\tdelete the rule corresponding to RULE_NUM.\n"
+			"\t--stats\t\t\t\tPrint number of packets blocked per rule.\n"
+			"\t--help\t\t\t\tPrint this help menu.\n"
+			"Rules must include\n"
+			"\t--proto {TCP,UDP,ICMP,ALL}\tWhich protocol the rule is for.\n"
+			"and optionally:\n"
+			"\t--in\t\t\t\t\tThe rule applies to only incoming packets\n"
+			"\t--out\t\t\t\t\tThe rule applies to only outgoing packets.\n"
+			"\t--ifcae interface\t\tThe interface the rule applies to.\n"
+			"\t--srcip ip\t\t\tThe source ip the rule applies to.\n"
+			"\t--srcport port\t\t\tThe source port the rule applies to\n"
+			"\t--srcnetmask netmask\t\tThe mask applied when comparing the source ip.\n"
+				"\t\t\t\t\tMust be used with --srcip \n"
+			"The corresponding flags for matching the destination of a packet:\n"
+			"\t--destip\n"
+			"\t--destport\n"
+			"\t--destnetmask\n"
+	);
+}
 int print_rules() {
 	return print_info(PROC_RULES_PATH, TABLE_HEADER);
 }
 int print_statistics(){
 	return print_info(PROC_STATS_PATH, STAT_HEADER);
 }
+/*Prints data from the specified file to standard in
+ * after printing the given header*/
 int print_info(const char* path, const char* header){
 	FILE * fp;
 	char buf[2048] = "";
 	if (!(fp = fopen(path, "r"))) {
-		fprintf(stderr,"Error reading %s. Please ensure the module is load",path);
+		fprintf(stderr,"Error reading %s. Please ensure the module is load",
+				path);
 		perror("");
 		return -1;
 	}
@@ -38,6 +79,7 @@ int print_info(const char* path, const char* header){
 
 	return 1;
 }
+/*Writes the firewall rule to the proc file system*/
 int write_rule(const struct firewall_rule rule) {
 	FILE * fp = fopen(PROC_RULES_PATH, "w");
 	if (fp == NULL) {
@@ -48,7 +90,10 @@ int write_rule(const struct firewall_rule rule) {
 	fclose(fp);
 	return 1;
 }
-int delete_rule(const int rule){
+/*Deletes rule corresponding to the supplied number.
+ * These numbers are merely the order in which the rules are
+ * stored in the kernel module, starting at zero*/
+int delete_rule(const unsigned int rule){
 	FILE * fp = fopen(PROC_RULES_PATH,"w");
 	if(fp == NULL || 0 > fprintf(fp,"DELETE %d",rule)){
 		perror("Error deleting firewall rule. Please ensure the module is loaded");
@@ -90,6 +135,7 @@ int main(int argc, char **argv) {
 				{ "destnetmask", required_argument, 0, 'f' },
 				{ "iface", required_argument, 0, 'q' },
 				{ "print", no_argument, 0, 'r' },
+				{ "help",no_argument,0,'w'},
 				{ "delete", required_argument, 0, 'y'},
 				{ "stats", no_argument, 0, 'z'},
 				{ 0, 0, 0, 0 }
@@ -123,12 +169,10 @@ int main(int argc, char **argv) {
 			break;
 		case 'o':
 			printf("Direction OUT\n");
-			//direction = "OUT";
 			rule.direction = OUT;
 			direction_set = 1;
 			break;
 		case 'p': // protocol
-			printf("Protocol: %s\n", optarg);
 			proto_set = 1;
 			//proto = optarg;
 			if (strcmp(optarg, "TCP") == 0) {
@@ -153,11 +197,9 @@ int main(int argc, char **argv) {
 		case 'a': // action
 			printf("Action: %s\n", optarg);
 			if (strcmp(optarg, "BLOCK") == 0) {
-				//action = optarg;
 				rule.action = DENY;
 				action_set = 1;
 			} else if (strcmp(optarg, "UNBLOCK") == 0) {
-				//action = optarg;
 				rule.action = ALLOW;
 				action_set = 1;
 			} else {
@@ -222,12 +264,14 @@ int main(int argc, char **argv) {
 				return -1;
 			}
 			break;
-		case 'q'://iface flag
+		case 'q'://interface flag
 			rule.iface = optarg;
 			break;
-		case 'r': // print
+		case 'r': // print flag
 			return print_rules();
-		case 'y':
+		case 'w':
+			return help();
+		case 'y': // delete flag
 			rule_numb = atoi(optarg);
 			if(0 <= rule_numb){
 				return delete_rule(rule_numb);
@@ -237,7 +281,7 @@ int main(int argc, char **argv) {
 				return -1;
 			}
 			break;
-		case 'z':
+		case 'z': // statistics flag
 			return print_statistics();
 			break;
 		case '?':
@@ -267,7 +311,7 @@ int main(int argc, char **argv) {
 		return 0;
 	}
 
-	serialize_rule(rule, stdout);
+//	serialize_rule(rule, stdout);
 	return write_rule(rule);
 }
 
@@ -337,6 +381,7 @@ void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 	} else if (rule.protocol == ICMP) {
 		proto = "ICMP";
 	}
+
 	inet_ntop(AF_INET, &rule.src_ip, src_ip, sizeof src_ip);
 	sprintf(src_port, "%d", rule.src_port);
 	inet_ntop(AF_INET, &rule.src_netmask, src_netmask, sizeof src_netmask);
@@ -351,9 +396,6 @@ void serialize_rule(const struct firewall_rule rule, FILE *fp) {
 			src_netmask, dest_ip, dest_port, dest_netmask)<0){
 			perror("Error writing to file "PROC_RULES_PATH);
 	}
-	/*char str[s];
-	 sprintf(str,fmt,action,direction, proto,src_ip,src_port, src_netmask, dest_ip,
-	 dest_port,dest_netmask);
-	 puts(str);*/
+
 }
 
