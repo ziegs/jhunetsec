@@ -298,8 +298,8 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 		} else {
 			return false;
 		}
-		if ((rule->src_port == sport || rule->src_port == 0)
-				&& (rule->dest_port == dport || rule->dest_port == 0)) {
+		if ((rule->src_port == sport || rule->src_port == 0) &&
+				(rule->dest_port == dport || rule->dest_port == 0)) {
 			if (((saddr & rule->src_netmask) == (rule->src_ip & rule->src_netmask)) &&
 					((daddr & rule->dest_netmask) == (rule->dest_ip & rule->dest_netmask)))
 				return true;
