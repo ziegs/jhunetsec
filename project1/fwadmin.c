@@ -291,8 +291,8 @@ int main(int argc, char **argv) {
 	}
 
 	if((src_net_msk_set && !src_ip_set) || dest_net_msk_set && !dest_ip_set){
-		fprintf(stderr,"If you specify a source or destination netmask");
-		fprintf(stderr,"you must specify the corresponding ip address.");
+		fprintf(stderr,"If you specify a source or destination netmask\n"
+			"you must specify the corresponding ip address.\n");
 		return 0;
 	}
 
