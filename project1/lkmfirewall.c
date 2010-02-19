@@ -152,7 +152,7 @@ int delete_rule(int rule_num) {
 
 	if (found) {
 		found_rule = list_entry(found, struct firewall_rule, list);
-		list_del_rcu(p);
+		list_del_rcu(found);
 		kfree(found_rule);
 		return 1;
 	}
@@ -286,8 +286,6 @@ int check_ip_packet(struct firewall_rule *rule, struct sk_buff *skb) {
 				return false;
 			sport = ntohs(hdr->source);
 			dport = ntohs(hdr->dest);
-			LKMFIREWALL_INFO("source %d %d", rule->src_port, sport);
-			LKMFIREWALL_INFO("dest %d %d", rule->dest_port, dport);
 		} else if (iph->protocol == IPPROTO_ICMP) {
 			icmphdr = skb_header_pointer(skb, ip_hdrlen(skb), sizeof(_icmphdr), &_icmphdr);
 			if (!icmphdr)
