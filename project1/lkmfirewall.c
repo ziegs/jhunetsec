@@ -333,10 +333,10 @@ unsigned int process_packet(unsigned int hooknum, struct sk_buff *skb,
 	 * commands get applied (assuming they come after a more broad rule). */
 	list_for_each_safe(p, n, &(rule_list.list)) {
 		rule = list_entry(p, struct firewall_rule, list);
-		if (hooknum == NF_INET_LOCAL_IN && (rule->direction == IN || rule->direction == BOTH)) {
+		if (hooknum == NF_INET_PRE_ROUTING && (rule->direction == IN || rule->direction == BOTH)) {
 			if (check_rule(rule, skb, in))
 				filter = rule;
-		} else if (hooknum == NF_INET_LOCAL_OUT && (rule->direction == OUT || rule->direction == BOTH)) {
+		} else if (hooknum == NF_INET_POST_ROUTING && (rule->direction == OUT || rule->direction == BOTH)) {
 			if (check_rule(rule, skb, in))
 				filter = rule;
 		}
@@ -402,13 +402,13 @@ int init_procfs(void) {
 
 void init_hooks(void) {
 	in_hook_opts.hook = process_packet;
-	in_hook_opts.hooknum = NF_INET_LOCAL_IN;
+	in_hook_opts.hooknum = NF_INET_PRE_ROUTING;
 	in_hook_opts.pf = PF_INET;
 	in_hook_opts.priority = NF_IP_PRI_FIRST;
 	in_hook_opts.owner = THIS_MODULE;
 
 	out_hook_opts.hook = process_packet;
-	out_hook_opts.hooknum = NF_INET_LOCAL_OUT;
+	out_hook_opts.hooknum = NF_INET_POST_ROUTING;
 	out_hook_opts.pf = PF_INET;
 	out_hook_opts.priority = NF_IP_PRI_FIRST;
 	out_hook_opts.owner = THIS_MODULE;
